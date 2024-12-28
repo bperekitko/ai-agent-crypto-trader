@@ -16,14 +16,18 @@ def log_transform(values):
     return np.log1p(values + shift_value)
 
 
-def box_cox_transform(values):
-    shift_value = abs(values.min()) + 1
-    return boxcox(values + shift_value)
+def box_cox_transform(values, lambda_fit=None, shift_value=None):
+    to_shift = abs(values.min()) + 1 if shift_value is None else shift_value
+    if lambda_fit is None:
+        transformed_data, fitted_lambda = boxcox(values + to_shift)
+        return transformed_data, fitted_lambda, to_shift
+    else:
+        return boxcox(values + to_shift, lambda_fit)
 
 
-def winsorize_transform(values):
-    max_limit = np.percentile(values, 99)
-    min_limit = np.percentile(values, 1)
+def winsorize_transform(values, top=99, bottom=1):
+    max_limit = np.percentile(values, top)
+    min_limit = np.percentile(values, bottom)
     return np.clip(values, a_min=min_limit, a_max=max_limit), min_limit, max_limit
 
 

@@ -19,13 +19,6 @@ def add_technical_indicators_to_data(file_path):
     df['macd_signal'] = macd.macd_signal()
     df['macd_diff'] = macd.macd_diff()
 
-    # Oblicz SMA i EMA
-    df['sma_50'] = ta.trend.SMAIndicator(df[RawDataColumns.CLOSE], window=50).sma_indicator()
-    df['sma_20'] = ta.trend.SMAIndicator(df[RawDataColumns.CLOSE], window=20).sma_indicator()
-    df['ema_50'] = ta.trend.EMAIndicator(df[RawDataColumns.CLOSE], window=50).ema_indicator()
-    df['ema_10'] = ta.trend.EMAIndicator(df[RawDataColumns.CLOSE], window=10).ema_indicator()
-    df['ema_20'] = ta.trend.EMAIndicator(df[RawDataColumns.CLOSE], window=20).ema_indicator()
-
     # Oblicz Bollinger Bands
     bollinger = ta.volatility.BollingerBands(df[RawDataColumns.CLOSE], window=20, window_dev=2)
     df['bollinger_mavg'] = bollinger.bollinger_mavg()

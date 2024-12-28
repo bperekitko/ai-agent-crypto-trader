@@ -1,5 +1,5 @@
 
-### Skewness
+# Skewness
 Skewness measures the symmetry of a dataset's distribution. Think of it as a way to describe if your data "leans" more to one side:
 
 Zero skewness: The data is perfectly symmetrical (like a bell curve).
@@ -11,7 +11,7 @@ Skewness tells you if your data might be biased in some way. For example:
 In finance, it can indicate if returns are more likely to be above or below average.
 In quality control, it might show if a manufacturing process is producing more high or low outliers.
 
-### Kurtosis
+# Kurtosis
 Kurtosis measures the "tailedness" of a distribution or how extreme the outliers are.
 
 High kurtosis: The data has heavy tails, meaning there are more extreme outliers.
