@@ -1,0 +1,6 @@
+venv
+.idea
+**.png**
+**.json**
+**.parquet**
+**.pkl**
