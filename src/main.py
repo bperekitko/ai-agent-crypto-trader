@@ -1,4 +1,5 @@
 from data.raw_data import get_data, refresh_data
+from data.raw_data_columns import DataColumns
 from model.features.analyze.analyze import analyze, log_transform, box_cox_transform, winsorize_transform
 from model.features.close_price_prct_diff import CloseDiff
 from sklearn.preprocessing import StandardScaler
@@ -12,7 +13,11 @@ from model.softmax_regression.softmax import SoftmaxRegression
 def main():
     # refresh_data()
     df = get_data()
-    SoftmaxRegression(df).describe()
+    # print(df[[DataColumns.DATE_CLOSE, DataColumns.CLOSE_PERCENT_CHANGE, DataColumns.CLOSE, DataColumns.TARGET]].head(20))
+    model = SoftmaxRegression(df)
+    model.train()
+    model.test()
+
     # feature = CloseToSma20()
     # values = feature.calculate(df)
     # df['high'] = values

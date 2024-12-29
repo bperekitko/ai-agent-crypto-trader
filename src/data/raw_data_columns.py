@@ -1,4 +1,4 @@
-class RawDataColumns:
+class DataColumns:
     CLOSE = "close"
     OPEN = "open"
     HIGH = "high"
@@ -30,3 +30,5 @@ class RawDataColumns:
     CUMULATIVE_VOLUME_24 = "cum_vol_24"
     CUMULATIVE_VOLUME_12 = "cum_vol_12"
     CLOSE_DIFF = "close_diff"
+    TARGET = 'target'
+    CLOSE_PERCENT_CHANGE = 'close_percent_change'

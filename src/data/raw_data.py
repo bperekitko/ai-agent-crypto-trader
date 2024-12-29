@@ -3,8 +3,8 @@ from datetime import datetime
 
 import pandas as pd
 from binance.client import Client
-from .raw_data_columns import RawDataColumns
-from .technical_indicators import add_technical_indicators_to_data, add_target_to_data
+from .raw_data_columns import DataColumns
+from .technical_indicators import add_target_to_data
 
 DATA_PATH = os.path.dirname(__file__)
 RAW_DATA_FILE_PATH = os.path.join(DATA_PATH, "raw_binance_data_BTCUSDT_1h.parquet")
@@ -43,17 +43,17 @@ def __to_data_frame(klines):
     return pd.DataFrame(
         data,
         columns=[
-            RawDataColumns.DATE_OPEN,
-            RawDataColumns.OPEN,
-            RawDataColumns.HIGH,
-            RawDataColumns.LOW,
-            RawDataColumns.CLOSE,
-            RawDataColumns.VOLUME,
-            RawDataColumns.DATE_CLOSE,
-            RawDataColumns.QUOTE_ASSET_VOL,
-            RawDataColumns.NUM_OF_TRADES,
-            RawDataColumns.TAKER_BUY_BASE_ASSET_VOL,
-            RawDataColumns.TAKER_BUY_QUOTE_ASSET_VOL,
+            DataColumns.DATE_OPEN,
+            DataColumns.OPEN,
+            DataColumns.HIGH,
+            DataColumns.LOW,
+            DataColumns.CLOSE,
+            DataColumns.VOLUME,
+            DataColumns.DATE_CLOSE,
+            DataColumns.QUOTE_ASSET_VOL,
+            DataColumns.NUM_OF_TRADES,
+            DataColumns.TAKER_BUY_BASE_ASSET_VOL,
+            DataColumns.TAKER_BUY_QUOTE_ASSET_VOL,
         ],
     )
 
@@ -71,22 +71,14 @@ def __download_data_to_file(start_time=datetime(2021, 1, 1), end_time=datetime(2
 
 def refresh_data():
     start_time = datetime(2024, 1, 1)
-    end_time = datetime(2024, 12, 17)
+    end_time = datetime(2024, 12, 31)
     print(f"Downloading BTC/USD data from {start_time} to {end_time}")
     __download_data_to_file(start_time, end_time)
-    print("Calculating technical indicators for raw data")
-    add_technical_indicators_to_data(RAW_DATA_FILE_PATH)
     add_target_to_data(RAW_DATA_FILE_PATH)
 
 
 def get_data():
-    data = pd.read_parquet(RAW_DATA_FILE_PATH)
-
-    if (data.isna().sum().sum() > 0):
-        print(
-            "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! \n\n WARNING: Data contains NaNs! \n\n !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-
-    return data
+    return pd.read_parquet(RAW_DATA_FILE_PATH)
 
 
 def get_last_x_intervals_1h(limit: int):

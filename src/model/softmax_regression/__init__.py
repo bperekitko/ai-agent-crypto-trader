@@ -1,6 +1,13 @@
 import json
 import os
 import pickle
+import pandas as pd
+
+# Displaying all columns when printing
+pd.set_option('display.max_columns', None)
+
+# Disable line wrap when printing
+pd.set_option('display.expand_frame_repr', False)
 
 __CURRENT_DIR_PATH = os.path.dirname(os.path.abspath(__file__))
 
