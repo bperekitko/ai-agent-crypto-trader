@@ -4,6 +4,8 @@ import numpy as np
 from model.features.analyze import current_dir_path_for
 from scipy.stats import boxcox
 
+from utils.log import Logger
+
 
 def analyze(values, feature_name):
     __histogram(values, feature_name)
@@ -45,17 +47,19 @@ def __describe(feature_name, values):
     skewness = values.skew()
     kurtosis = values.kurt()
 
+    logger = Logger(feature_name)
+
     # Wyświetlanie wyników
-    print(f'\n\n {feature_name}: \n')
-    print(f"[{feature_name}] Mean: {mean}")
-    print(f"[{feature_name}] Median: {median}")
-    print(f"[{feature_name}] Standard deviation: {std_dev}")
-    print(f"[{feature_name}] Variance: {variance}")
-    print(f"[{feature_name}] First quantile (Q1): {q1}")
-    print(f"[{feature_name}] Third quantile (Q3): {q3}")
-    print(f"[{feature_name}] IQR: {iqr}")
-    print(f"[{feature_name}] Skewness: {skewness}")
-    print(f"[{feature_name}] kurtosis: {kurtosis}")
+
+    logger.info(f"[{feature_name}] Mean: {mean}")
+    logger.info(f"[{feature_name}] Median: {median}")
+    logger.info(f"[{feature_name}] Standard deviation: {std_dev}")
+    logger.info(f"[{feature_name}] Variance: {variance}")
+    logger.info(f"[{feature_name}] First quantile (Q1): {q1}")
+    logger.info(f"[{feature_name}] Third quantile (Q3): {q3}")
+    logger.info(f"[{feature_name}] IQR: {iqr}")
+    logger.info(f"[{feature_name}] Skewness: {skewness}")
+    logger.info(f"[{feature_name}] kurtosis: {kurtosis}")
 
 
 def __box_plot(values, name):

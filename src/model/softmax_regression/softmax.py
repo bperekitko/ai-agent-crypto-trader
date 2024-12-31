@@ -12,6 +12,8 @@ from model.features.close_to_low import CloseToLow
 from model.features.close_to_sma import CloseToSma
 from model.features.feature import Feature
 from model.features.high_to_close import HighToClose
+from model.features.rsi import RSI
+from model.features.volume import Volume
 from model.model import Model
 from model.softmax_regression.evaluation.evaluate import evaluate
 from utils.log import Logger
@@ -19,29 +21,33 @@ from utils.log import Logger
 
 class SoftmaxRegression(Model):
     __NAME = 'softmax_linear_regression'
-    __features: List[Feature] = [CloseDiff(),
-                                 CloseDiff().lagged(1),
-                                 CloseDiff().lagged(2),
-                                 CloseDiff().lagged(3),
-                                 CloseDiff().lagged(4),
-                                 HighToClose(),
-                                 HighToClose().lagged(1),
-                                 HighToClose().lagged(2),
-                                 HighToClose().lagged(3),
-                                 HighToClose().lagged(4),
-                                 HighToClose().lagged(5),
-                                 CloseToLow(),
-                                 CloseToLow().lagged(1),
-                                 CloseToLow().lagged(2),
-                                 CloseToLow().lagged(3),
-                                 CloseToLow().lagged(4),
-                                 CloseToSma(8),
-                                 CloseToSma(8).lagged(1)
-                                 ]
     __target_mapping = {'DOWN': 0, 'UP': 1, 'NEUTRAL': 2}
     __LOG = Logger(__NAME)
 
     def __init__(self):
+        self.__features: List[Feature] = [
+            Volume(),
+            RSI(8),
+            RSI(30),
+            CloseDiff(),
+            CloseDiff().lagged(1),
+            CloseDiff().lagged(2),
+            CloseDiff().lagged(3),
+            CloseDiff().lagged(4),
+            HighToClose(),
+            HighToClose().lagged(1),
+            HighToClose().lagged(2),
+            HighToClose().lagged(3),
+            HighToClose().lagged(4),
+            HighToClose().lagged(5),
+            CloseToLow(),
+            CloseToLow().lagged(1),
+            CloseToLow().lagged(2),
+            CloseToLow().lagged(3),
+            CloseToLow().lagged(4),
+            CloseToSma(8),
+            CloseToSma(8).lagged(1)
+        ]
         self.params = {
             "solver": "lbfgs",
             "max_iter": 200,
@@ -154,3 +160,15 @@ class SoftmaxRegression(Model):
             self.params['lagged_features'] = [feat.name() for feat in features]
             self.train(train_df)
             self.test(test_df)
+
+    def test_different_rsi(self, window, train_df: pd.DataFrame, test_df: pd.DataFrame):
+        self.__features += [RSI(window)]
+        self.params['RSI WINDOW'] = window
+        self.train(train_df)
+        self.test(test_df)
+
+    def test_volume_lagged(self, lags, train_df: pd.DataFrame, test_df: pd.DataFrame):
+        self.__features = [Volume().lagged(i) for i in range(1, lags + 1)] + self.__features
+        self.params["features"] = [feature.name() for feature in self.__features]
+        self.train(train_df)
+        self.test(test_df)

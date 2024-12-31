@@ -1,6 +1,4 @@
 from data.raw_data import get_data
-from model.features.close_price_prct_diff import CloseDiff
-
 from model.softmax_regression.softmax import SoftmaxRegression
 
 
@@ -12,9 +10,10 @@ def main():
     test_data = df.iloc[train_size:]
 
     model = SoftmaxRegression()
+    # for i in range(1, 11):
+    #     model.test_volume_lagged(i, train_data, test_data)
     model.train(train_data)
     model.test(test_data)
-    # model.test_different_lags(train_data, test_data)
 
 
 if __name__ == "__main__":

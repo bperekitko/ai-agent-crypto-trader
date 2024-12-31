@@ -29,6 +29,6 @@ class CloseToSma(Feature):
         result = pd.Series(scaled_values.flatten())
         return pd.concat([pd.Series([np.nan] * (len(df) - len(scaled_values))), result]).reset_index(drop=True)
 
-    def __scale_values(self, values: pd.Series):
+    def __scale_values(self, values):
         transformation_func = self.scaler.transform if self.is_fitted else self.scaler.fit_transform
         return transformation_func(values)
