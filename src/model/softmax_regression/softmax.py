@@ -1,194 +1,156 @@
 import json
+from itertools import product
 from typing import List
-from unittest.mock import inplace
 
 import numpy as np
+import pandas as pd
 from sklearn.linear_model import LogisticRegression
-from sklearn.preprocessing import StandardScaler
 
 from data.raw_data_columns import DataColumns
-from model.features.analyze.analyze import winsorize_transform, box_cox_transform
 from model.features.close_price_prct_diff import CloseDiff
 from model.features.close_to_low import CloseToLow
-from model.features.close_to_sma20 import CloseToSma20
+from model.features.close_to_sma import CloseToSma
+from model.features.feature import Feature
 from model.features.high_to_close import HighToClose
 from model.model import Model
-from model.softmax_regression import save_to_json, save_box_cox_lambda, save_scaler, load_scaler, load_box_cox_lambda
 from model.softmax_regression.evaluation.evaluate import evaluate
+from utils.log import Logger
 
 
 class SoftmaxRegression(Model):
-    __VERSION = 0.01
     __NAME = 'softmax_linear_regression'
-    __features = []
+    __features: List[Feature] = [CloseDiff(),
+                                 CloseDiff().lagged(1),
+                                 CloseDiff().lagged(2),
+                                 CloseDiff().lagged(3),
+                                 CloseDiff().lagged(4),
+                                 HighToClose(),
+                                 HighToClose().lagged(1),
+                                 HighToClose().lagged(2),
+                                 HighToClose().lagged(3),
+                                 HighToClose().lagged(4),
+                                 HighToClose().lagged(5),
+                                 CloseToLow(),
+                                 CloseToLow().lagged(1),
+                                 CloseToLow().lagged(2),
+                                 CloseToLow().lagged(3),
+                                 CloseToLow().lagged(4),
+                                 CloseToSma(8),
+                                 CloseToSma(8).lagged(1)
+                                 ]
     __target_mapping = {'DOWN': 0, 'UP': 1, 'NEUTRAL': 2}
+    __LOG = Logger(__NAME)
 
-    def __init__(self, df):
+    def __init__(self):
         self.params = {
-            "version": self.__VERSION,
             "solver": "lbfgs",
             "max_iter": 200,
-            "C": 1.0
+            "C": 1.0,
+            "features": [feature.name() for feature in self.__features]
         }
         self.model = LogisticRegression(solver=self.params['solver'], max_iter=self.params['max_iter'],
                                         C=self.params['C'])
-        train_size = int(len(df) * 0.75)
-        train_data = df.iloc[:train_size]
-        test_data = df.iloc[train_size:]
-
-        self.test_data = test_data[[DataColumns.DATE_CLOSE, DataColumns.TARGET]].copy()
-        self.train_data = train_data[[DataColumns.DATE_CLOSE, DataColumns.TARGET]].copy()
-
-        self.__prepare_train_data(train_data)
-        self.__prepare_test_data(test_data)
-
-        self.params['features_used'] = self.__features
-        save_to_json(f'params_{self.__VERSION}', self.params)
 
     def name(self):
         return self.__NAME
 
     def describe(self):
-        print(f'{self.__NAME}, v.{self.__VERSION}')
-        print(json.dumps(self.params, indent=4))
-        # for column in self.features:
-        #     analyze(self.train_data[column], column)
-        print(self.train_data.head(20))
-        print(f'Test len: {len(self.train_data)}')
+        self.__LOG.info(f'{self.__NAME}')
+        self.__LOG.info(json.dumps(self.params, indent=4))
 
-    def predict(self):
-        pass
+    def predict(self, df: pd.DataFrame):
+        input_data = self.__prepare_for_predict(df)
+        self.__LOG.info(f'Creating predictions for input of length: {len(df)}')
+        test_x = input_data.drop([DataColumns.DATE_CLOSE, DataColumns.TARGET], axis=1)
+        result = self.model.predict_proba(test_x)
+        self.__LOG.info(f'Predictions created. Size: {len(result)}')
+        return result
 
-    def train(self):
-        train_x = self.train_data[self.__features]
-        train_y = [self.__target_mapping[target] for target in self.train_data[DataColumns.TARGET]]
+    def train(self, df: pd.DataFrame):
+        train_data = self.__prepare_train_data(df)
+        train_x = train_data.drop([DataColumns.DATE_CLOSE, DataColumns.TARGET], axis=1)
+        train_y = [self.__target_mapping[target] for target in train_data[DataColumns.TARGET]]
+
+        self.__LOG.info(f'Starting to train model {self.__NAME}')
         self.model.fit(train_x, train_y)
+        self.__LOG.info(f'Model {self.__NAME} successfully trained')
 
-    def test(self):
-        test_x = self.test_data[self.__features]
-        test_y = [self.__target_mapping[target] for target in self.test_data[DataColumns.TARGET]]
-        probabilities = self.model.predict_proba(test_x)
-        evaluate(probabilities, test_y, self.params, self.__NAME, self.__VERSION)
+    def test(self, df: pd.DataFrame):
+        self.__LOG.info(f'Testing model {self.__NAME}')
+        probabilities = self.predict(df)
+        test_y = [self.__target_mapping[target] for target in self.__prepare_for_predict(df)[DataColumns.TARGET]]
+        evaluate(probabilities, np.array(test_y), self.params, self.__NAME)
 
-    def __prepare_train_data(self, df):
-        self.__close_diff(df)
-        self.__high_to_close(df)
-        self.__close_to_low(df)
-        self.__close_to_sma20(df)
-        for lag in range(1, 5):
-            for feature in [CloseDiff().name(), HighToClose().name(), CloseToLow().name(), CloseToSma20().name()]:
-                lagged_feature = f'{feature}_lag_{lag}'
-                self.train_data[lagged_feature] = self.train_data[feature].shift(lag)
-                self.__features.append(lagged_feature)
-        self.train_data.dropna(inplace=True)
+    def __prepare_train_data(self, df) -> pd.DataFrame:
+        train_data = df[[DataColumns.DATE_CLOSE, DataColumns.TARGET]].copy()
+        for feature in self.__features:
+            train_data[feature.name()] = feature.calculate(df).values
 
-    def __prepare_test_data(self, test_df):
-        self.__close_diff_from_test(test_df)
-        self.__high_to_close_from_test(test_df)
-        self.__close_to_low_from_test(test_df)
-        self.__close_to_sma20_from_test(test_df)
-        for lag in range(1, 5):
-            for feature in [CloseDiff().name(), HighToClose().name(), CloseToLow().name(), CloseToSma20().name()]:
-                lagged_feature = f'{feature}_lag_{lag}'
-                self.test_data[lagged_feature] = self.test_data[feature].shift(lag)
-                self.__features.append(lagged_feature)
-        self.test_data.dropna(inplace=True)
+        train_data.dropna(inplace=True)
+        return train_data
 
-    def __close_diff(self, df):
-        feature = CloseDiff()
-        name = feature.name()
-        self.__features.append(name)
-        self.train_data[name] = feature.calculate(df)
-        self.train_data = self.train_data.dropna()
-        self.train_data.loc[:, name], min_limit, max_limit = winsorize_transform(self.train_data[name])
+    def __prepare_for_predict(self, df):
+        data = df[[DataColumns.DATE_CLOSE, DataColumns.TARGET]].copy()
+        for feature in self.__features:
+            data[feature.name()] = feature.calculate(df).values
+        data.dropna(inplace=True)
+        return data
 
-        scaler = StandardScaler()
-        self.train_data[name] = scaler.fit_transform(self.train_data[[name]])
-        scaler_name = save_scaler(f'{name}_scaler_{self.__VERSION}', scaler)
-        self.params[f"{name}_winsorize_min"] = min_limit
-        self.params[f"{name}_winsorize_max"] = max_limit
-        self.params[f"{name}_standard_scaler_name"] = scaler_name
+    def test_different_sma(self, window, train_df: pd.DataFrame, test_df: pd.DataFrame):
+        self.__features = [CloseDiff(), HighToClose(), CloseToLow(), CloseToSma(window)]
+        self.params['sma_window'] = window
+        self.train(train_df)
+        self.test(test_df)
 
-    def __high_to_close(self, df):
-        feature = HighToClose()
-        name = feature.name()
-        self.__features.append(name)
-        self.train_data[name] = feature.calculate(df)
-        self.train_data = self.train_data.dropna()
-        self.train_data.loc[:, name], lambda_fitted, shift_value = box_cox_transform(self.train_data[name])
+    def test_different_lags(self, train_df: pd.DataFrame, test_df: pd.DataFrame):
+        lagging_close_diff = [
+            CloseDiff().lagged(1),
+            CloseDiff().lagged(2),
+            CloseDiff().lagged(3),
+            CloseDiff().lagged(4),
+            CloseDiff().lagged(5),
+        ]
 
-        scaler = StandardScaler()
-        self.train_data[name] = scaler.fit_transform(self.train_data[[name]])
-        scaler_name = save_scaler(f'{name}_scaler_{self.__VERSION}', scaler)
-        lambda_name = save_box_cox_lambda(f'{name}_box_cox_lambda_{self.__VERSION}', lambda_fitted)
-        self.params[f"{name}_standard_scaler_name"] = scaler_name
-        self.params[f'{name}_box_cox_lambda_name'] = lambda_name
-        self.params[f'{name}_box_cox_lambda_shift_value'] = shift_value
+        lagging_high = [
+            HighToClose().lagged(1),
+            HighToClose().lagged(2),
+            HighToClose().lagged(3),
+            HighToClose().lagged(4),
+            HighToClose().lagged(5),
+        ]
 
-    def __close_to_low(self, df):
-        feature = CloseToLow()
-        name = feature.name()
-        self.__features.append(name)
-        self.train_data[name] = feature.calculate(df)
-        self.train_data = self.train_data.dropna()
-        self.train_data.loc[:, name], lambda_fitted, shift_value = box_cox_transform(self.train_data[name])
+        lagging_close_to_low = [
+            CloseToLow().lagged(1),
+            CloseToLow().lagged(2),
+            CloseToLow().lagged(3),
+            CloseToLow().lagged(4),
+            CloseToLow().lagged(5),
+        ]
 
-        scaler = StandardScaler()
-        self.train_data[name] = scaler.fit_transform(self.train_data[[name]])
-        scaler_name = save_scaler(f'{name}_scaler_{self.__VERSION}', scaler)
-        lambda_name = save_box_cox_lambda(f'{name}_box_cox_lambda_{self.__VERSION}', lambda_fitted)
-        self.params[f"{name}_standard_scaler_name"] = scaler_name
-        self.params[f'{name}_box_cox_lambda_name'] = lambda_name
-        self.params[f'{name}_box_cox_lambda_shift_value'] = shift_value
+        lagging_close_to_smaf = [
+            CloseToSma(8).lagged(1),
+            CloseToSma(8).lagged(2),
+            CloseToSma(8).lagged(3),
+            CloseToSma(8).lagged(4),
+            CloseToSma(8).lagged(5),
+        ]
 
-    def __close_to_sma20(self, df):
-        feature = CloseToSma20()
-        name = feature.name()
-        self.__features.append(name)
-        self.train_data[name] = feature.calculate(df)
-        self.train_data = self.train_data.dropna()
+        prefixy1 = [lagging_close_diff[:i] for i in range(1, 6)]
+        prefixy2 = [lagging_close_to_low[:i] for i in range(1, 6)]
+        prefixy3 = [lagging_high[:i] for i in range(1, 6)]
+        prefixy4 = [lagging_close_to_smaf[:i] for i in range(1, 6)]
 
-        scaler = StandardScaler()
-        self.train_data[name] = scaler.fit_transform(self.train_data[[name]])
-        scaler_name = save_scaler(f'{name}_scaler_{self.__VERSION}', scaler)
-        self.params[f"{name}_standard_scaler_name"] = scaler_name
+        # Użycie product, aby utworzyć kombinacje z prefixów każdej tablicy
+        combinations = list(product(prefixy1, prefixy2, prefixy3, prefixy4))
 
-    def __close_diff_from_test(self, df):
-        feature = CloseDiff()
-        name = feature.name()
-        self.test_data[name] = feature.calculate(df)
-        self.test_data = self.test_data.dropna()
-        self.test_data.loc[:, name] = np.clip(self.test_data[name], a_min=self.params[f'{name}_winsorize_min'],
-                                              a_max=self.params[f'{name}_winsorize_max'])
-        scaler = load_scaler(self.params[f'{name}_standard_scaler_name'])
-        self.test_data[name] = scaler.transform(self.test_data[[name]])
+        # Wyświetlenie wszystkich kombinacji
+        for kombinacja in combinations:
+            features = [element for sublist in kombinacja for element in sublist]
+            self.__features = [CloseDiff(),
+                               HighToClose(),
+                               CloseToLow(),
+                               CloseToSma(8)] + features
 
-    def __high_to_close_from_test(self, test_df):
-        feature = HighToClose()
-        name = feature.name()
-        self.test_data[name] = feature.calculate(test_df)
-        self.test_data = self.test_data.dropna()
-        box_cox_lambda = load_box_cox_lambda(self.params[f'{name}_box_cox_lambda_name'])
-        shift_value = self.params[f'{name}_box_cox_lambda_shift_value']
-        self.test_data.loc[:, name] = box_cox_transform(self.test_data[name], box_cox_lambda, shift_value)
-
-        scaler = load_scaler(self.params[f'{name}_standard_scaler_name'])
-        self.test_data[name] = scaler.transform(self.test_data[[name]])
-
-    def __close_to_low_from_test(self, test_df):
-        feature = CloseToLow()
-        name = feature.name()
-        self.test_data[name] = feature.calculate(test_df)
-        self.test_data = self.test_data.dropna()
-        box_cox_lambda = load_box_cox_lambda(self.params[f'{name}_box_cox_lambda_name'])
-        shift_value = self.params[f'{name}_box_cox_lambda_shift_value']
-        self.test_data.loc[:, name] = box_cox_transform(self.test_data[name], box_cox_lambda, shift_value)
-
-    def __close_to_sma20_from_test(self, test_df):
-        feature = CloseToSma20()
-        name = feature.name()
-        self.test_data[name] = feature.calculate(test_df)
-        self.test_data = self.test_data.dropna()
-        scaler = load_scaler(self.params[f'{name}_standard_scaler_name'])
-
-        self.test_data[name] = scaler.transform(self.test_data[[name]])
+            self.params['lagged_features'] = [feat.name() for feat in features]
+            self.train(train_df)
+            self.test(test_df)

@@ -66,7 +66,7 @@ def __box_plot(values, name):
     plt.xlabel("Values")
     plt.grid(True)
     # Zapisz wykres pudełkowy do pliku
-    plt.savefig(current_dir_path_for(f'{name}_boxplot.png'))
+    plt.savefig(current_dir_path_for(f'{name}') + f'/{name}_boxplot.png')
     plt.close()
 
 
@@ -79,5 +79,5 @@ def __histogram(values, name):
     plt.ylabel("Count")
     plt.grid(True)
     # Zapisz histogram do pliku
-    plt.savefig(current_dir_path_for(f'{name}_histogram.png'))
+    plt.savefig(current_dir_path_for(f'{name}') + f'/{name}_histogram.png')
     plt.close()

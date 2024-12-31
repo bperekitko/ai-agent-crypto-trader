@@ -1,4 +1,7 @@
-from abc import ABC,abstractmethod
+from abc import ABC, abstractmethod
+
+import pandas as pd
+
 
 class Model(ABC):
 
@@ -11,9 +14,9 @@ class Model(ABC):
         pass
 
     @abstractmethod
-    def predict(self):
+    def predict(self, df: pd.DataFrame):
         pass
 
     @abstractmethod
-    def train(self):
+    def train(self, df: pd.DataFrame):
         pass
