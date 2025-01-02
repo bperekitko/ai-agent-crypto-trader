@@ -28,25 +28,25 @@ class SoftmaxRegression(Model):
         self.__features: List[Feature] = [
             Volume(),
             RSI(8),
-            RSI(30),
+            # RSI(30),
             CloseDiff(),
-            CloseDiff().lagged(1),
-            CloseDiff().lagged(2),
-            CloseDiff().lagged(3),
-            CloseDiff().lagged(4),
+            # CloseDiff().lagged(1),
+            # CloseDiff().lagged(2),
+            # CloseDiff().lagged(3),
+            # CloseDiff().lagged(4),
             HighToClose(),
-            HighToClose().lagged(1),
-            HighToClose().lagged(2),
-            HighToClose().lagged(3),
-            HighToClose().lagged(4),
-            HighToClose().lagged(5),
+            # HighToClose().lagged(1),
+            # HighToClose().lagged(2),
+            # HighToClose().lagged(3),
+            # HighToClose().lagged(4),
+            # HighToClose().lagged(5),
             CloseToLow(),
-            CloseToLow().lagged(1),
-            CloseToLow().lagged(2),
-            CloseToLow().lagged(3),
-            CloseToLow().lagged(4),
+            # CloseToLow().lagged(1),
+            # CloseToLow().lagged(2),
+            # CloseToLow().lagged(3),
+            # CloseToLow().lagged(4),
             CloseToSma(8),
-            CloseToSma(8).lagged(1)
+            # CloseToSma(8).lagged(1)
         ]
         self.params = {
             "solver": "lbfgs",
@@ -65,7 +65,7 @@ class SoftmaxRegression(Model):
         self.__LOG.info(json.dumps(self.params, indent=4))
 
     def predict(self, df: pd.DataFrame):
-        input_data = self.__prepare_for_predict(df)
+        input_data = self.prepare_for_predict(df)
         self.__LOG.info(f'Creating predictions for input of length: {len(df)}')
         test_x = input_data.drop([DataColumns.DATE_CLOSE, DataColumns.TARGET], axis=1)
         result = self.model.predict_proba(test_x)
@@ -84,7 +84,7 @@ class SoftmaxRegression(Model):
     def test(self, df: pd.DataFrame):
         self.__LOG.info(f'Testing model {self.__NAME}')
         probabilities = self.predict(df)
-        test_y = [self.__target_mapping[target] for target in self.__prepare_for_predict(df)[DataColumns.TARGET]]
+        test_y = [self.__target_mapping[target] for target in self.prepare_for_predict(df)[DataColumns.TARGET]]
         evaluate(probabilities, np.array(test_y), self.params, self.__NAME)
 
     def __prepare_train_data(self, df) -> pd.DataFrame:
@@ -95,7 +95,7 @@ class SoftmaxRegression(Model):
         train_data.dropna(inplace=True)
         return train_data
 
-    def __prepare_for_predict(self, df):
+    def prepare_for_predict(self, df):
         data = df[[DataColumns.DATE_CLOSE, DataColumns.TARGET]].copy()
         for feature in self.__features:
             data[feature.name()] = feature.calculate(df).values

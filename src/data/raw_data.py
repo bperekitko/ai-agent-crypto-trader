@@ -70,15 +70,17 @@ def __download_data_to_file(start_time=datetime(2021, 1, 1), end_time=datetime(2
 
 
 def refresh_data():
-    start_time = datetime(2024, 1, 1)
+    start_time = datetime(2020, 1, 1)
     end_time = datetime(2024, 12, 31)
     print(f"Downloading BTC/USD data from {start_time} to {end_time}")
     __download_data_to_file(start_time, end_time)
     add_target_to_data(RAW_DATA_FILE_PATH)
 
 
-def get_data():
-    return pd.read_parquet(RAW_DATA_FILE_PATH)
+def get_data(start_date: datetime, end_date: datetime):
+    df = pd.read_parquet(RAW_DATA_FILE_PATH)
+    filtered_by_dates = (df[DataColumns.DATE_CLOSE] >= start_date) & (df[DataColumns.DATE_CLOSE] < end_date)
+    return df.loc[filtered_by_dates]
 
 
 def get_last_x_intervals_1h(limit: int):

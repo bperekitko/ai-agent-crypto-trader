@@ -6,7 +6,9 @@ from sklearn.metrics import accuracy_score
 from sklearn.metrics import brier_score_loss
 from sklearn.metrics import cohen_kappa_score
 from sklearn.metrics import log_loss
+from sklearn.metrics import precision_score, recall_score, f1_score, matthews_corrcoef
 from sklearn.metrics import roc_auc_score
+from sklearn.calibration import calibration_curve
 
 from model.softmax_regression.evaluation import current_dir_path
 from utils.add_to_excel import append_df_to_excel
@@ -36,22 +38,29 @@ def __evaluate_with_confidence(model_name, model_params, probabilities, y_test, 
                     range(probabilities.shape[1])]
     y_pred = np.argmax(probabilities, axis=1)
     kappa_score = cohen_kappa_score(y_test, y_pred)
+
     accuracy = accuracy_score(y_test, y_pred)
-
-    Logger(model_name).info(f'Accuracy: {accuracy} for confidence level: {confidence}')
-
+    precision = precision_score(y_test, y_pred, average='macro')
+    recall = recall_score(y_test, y_pred, average='macro')
+    f1 = f1_score(y_test, y_pred, average='macro')
+    mcc = matthews_corrcoef(y_test, y_pred)
     results = {
         'Model': f'{model_name}',
         'Confidence threshold': confidence,
         'Confident predictions count': f'{len(y_test)} of {original_pred_count}',
         'Accuracy': accuracy,
+        'Precision': precision,
+        'Recall': recall,
+        'F1-Score': f1,
+        'MCC': mcc,
+        'Cohen Kappa': kappa_score,
         'Log Loss': log_loss_value,
         'ROC AUC': roc_auc_value,
         'Brier Score (DOWN)': brier_scores[0],  # {'DOWN': 0, 'UP': 1, 'NEUTRAL': 2}
         'Brier Score (UP)': brier_scores[1],
         'Brier Score (NEUTRAL)': brier_scores[2],
-        'Cohen Kappa': kappa_score,
         'ModelParams': json.dumps(model_params)
     }
     results_df = pd.DataFrame([results])
     append_df_to_excel(results_df, current_dir_path(f'{model_name}.xlsx'))
+
