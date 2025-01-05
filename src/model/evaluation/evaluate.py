@@ -8,9 +8,8 @@ from sklearn.metrics import cohen_kappa_score
 from sklearn.metrics import log_loss
 from sklearn.metrics import precision_score, recall_score, f1_score, matthews_corrcoef
 from sklearn.metrics import roc_auc_score
-from sklearn.calibration import calibration_curve
 
-from model.softmax_regression.evaluation import current_dir_path
+from model.evaluation import current_dir_path
 from utils.add_to_excel import append_df_to_excel
 from utils.log import Logger
 
@@ -26,8 +25,10 @@ def evaluate(probabilities, y_test, model_params, model_name):
         confident_predictions_filter = np.max(probabilities, axis=1) > confidence
         confident_probabilities = probabilities[confident_predictions_filter]
         confident_y_true = y_test[confident_predictions_filter]
-        __evaluate_with_confidence(model_name, model_params, confident_probabilities, confident_y_true,
-                                   confidence, original_count)
+        if len(confident_y_true > 0):
+            __evaluate_with_confidence(model_name, model_params, confident_probabilities, confident_y_true, confidence, original_count)
+        else:
+            logger.warn(f'No samples with confidence level: {confidence}')
     logger.info(f'Saved evaluation results to file: {model_name}.xlsx')
 
 
@@ -40,8 +41,8 @@ def __evaluate_with_confidence(model_name, model_params, probabilities, y_test, 
     kappa_score = cohen_kappa_score(y_test, y_pred)
 
     accuracy = accuracy_score(y_test, y_pred)
-    precision = precision_score(y_test, y_pred, average='macro')
-    recall = recall_score(y_test, y_pred, average='macro')
+    precision = precision_score(y_test, y_pred, average='macro', zero_division=np.nan)
+    recall = recall_score(y_test, y_pred, average='macro', zero_division=np.nan)
     f1 = f1_score(y_test, y_pred, average='macro')
     mcc = matthews_corrcoef(y_test, y_pred)
     results = {
@@ -63,4 +64,3 @@ def __evaluate_with_confidence(model_name, model_params, probabilities, y_test, 
     }
     results_df = pd.DataFrame([results])
     append_df_to_excel(results_df, current_dir_path(f'{model_name}.xlsx'))
-
