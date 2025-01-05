@@ -112,16 +112,3 @@ class SoftmaxRegression(Model):
         data[self.__target.name()] = self.__target.calculate(df)
         data.dropna(inplace=True)
         return data
-
-    def set_window(self, window):
-        self.__target = Target(AtrLabelingPolicy(window))
-        self.__features = [
-            AverageTrueRange(window),
-            Volume(),
-            RSI(8),
-            CloseDiff(),
-            HighToClose(),
-            CloseToLow(),
-            CloseToSma(8),
-        ]
-        self.params['ATR'] = window

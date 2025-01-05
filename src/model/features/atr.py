@@ -10,7 +10,7 @@ from model.features.feature import Feature
 
 class AverageTrueRange(Feature):
     def __init__(self, window):
-        super().__init__("ATR")
+        super().__init__(f'ATR_{window}')
         self.__window = window
         self.scaler = StandardScaler()
         self.fitted_lambda = None

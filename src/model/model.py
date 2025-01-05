@@ -20,3 +20,7 @@ class Model(ABC):
     @abstractmethod
     def train(self, df: pd.DataFrame):
         pass
+
+    @abstractmethod
+    def test(self, df: pd.DataFrame):
+        pass

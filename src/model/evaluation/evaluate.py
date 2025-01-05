@@ -13,7 +13,7 @@ from model.evaluation import current_dir_path
 from utils.add_to_excel import append_df_to_excel
 from utils.log import Logger
 
-__CONFIDENCE_LEVELS = [0.0, 0.4, 0.45, 0.5, 0.55, 0.6]
+__CONFIDENCE_LEVELS = [0.0, 0.4, 0.45, 0.5, 0.55, 0.6, 0.7, 0.8]
 
 
 def evaluate(probabilities, y_test, model_params, model_name):
@@ -48,7 +48,7 @@ def __evaluate_with_confidence(model_name, model_params, probabilities, y_test, 
     results = {
         'Model': f'{model_name}',
         'Confidence threshold': confidence,
-        'Confident predictions count': f'{len(y_test)} of {original_pred_count}',
+        'Confident predictions count': len(y_test) / original_pred_count,
         'Accuracy': accuracy,
         'Precision': precision,
         'Recall': recall,
