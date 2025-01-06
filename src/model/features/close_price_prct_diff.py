@@ -35,6 +35,8 @@ class CloseDiff(Feature):
             return result
 
     def __scale_values(self, values: pd.Series):
+        if self._bins > 0:
+            values = self._binned_equal_size(values)
         values_reshaped_for_scaling = values.values.reshape(-1, 1)
         transformation_func = self.scaler.transform if self.is_fitted else self.scaler.fit_transform
         return transformation_func(values_reshaped_for_scaling)

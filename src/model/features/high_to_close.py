@@ -25,11 +25,13 @@ class HighToClose(Feature):
         return pd.Series(scaled.flatten())
 
     def __scale(self, values):
-        return self.scaler.transform(values) if self.is_fitted else self.scaler.fit_transform(values)
+        if self._bins > 0:
+            values = self._binned_equal_size(values)
+        return self.scaler.transform(values.reshape(-1, 1)) if self.is_fitted else self.scaler.fit_transform(values.reshape(-1, 1))
 
     def __transform(self, series: pd.Series):
         if self.is_fitted:
-            return box_cox_transform(series, self.fitted_lambda, self.box_cox_shift).reshape(-1, 1)
+            return box_cox_transform(series, self.fitted_lambda, self.box_cox_shift)
         else:
             result, self.fitted_lambda, self.box_cox_shift = box_cox_transform(series)
-            return result.reshape(-1, 1)
+            return result

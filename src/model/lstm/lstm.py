@@ -30,7 +30,7 @@ class Lstm(Model):
     __LOG = Logger(__NAME)
 
     def __init__(self):
-        self.__features: List[Feature] = [CloseDiff(), HighToClose(), CloseToLow(), Volume(), RSI(8), HourOfDaySine(), HourOfDayCosine()]
+        self.__features: List[Feature] = [CloseDiff().binned_equally(15), HighToClose(), CloseToLow(), Volume(), RSI(8), HourOfDaySine(), HourOfDayCosine()]
         neg_perc = 25
         pos_perc = 100 - neg_perc
         self.__target = Target(PercentileLabelingPolicy(neg_perc, pos_perc))

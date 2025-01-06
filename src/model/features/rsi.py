@@ -18,7 +18,8 @@ class RSI(Feature):
     def _calculate(self, df: DataFrame):
         series = ta.momentum.RSIIndicator(df[DataColumns.CLOSE], window=self.window).rsi()
         series.dropna(inplace=True)
-
+        if self._bins > 0:
+            series = self._binned_equal_size(series)
         scaled = self.__scale_values(series.values.reshape(-1, 1))
         self.is_fitted = True
 

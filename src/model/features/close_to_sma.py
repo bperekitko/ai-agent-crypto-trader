@@ -22,6 +22,8 @@ class CloseToSma(Feature):
         sma = df[DataColumns.CLOSE].rolling(window=self.window).mean()
         series = df[DataColumns.CLOSE] / sma
         series.dropna(inplace=True)
+        if self._bins > 0:
+            series = self._binned_equal_size(series)
 
         scaled_values = self.__scale_values(series.values.reshape(-1, 1))
         self.is_fitted = True

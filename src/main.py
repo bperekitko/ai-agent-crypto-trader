@@ -1,6 +1,16 @@
 import os
+from unittest.mock import inplace
 
 import pandas as pd
+
+from model.features.analyze.analyze import analyze
+from model.features.close_price_prct_diff import CloseDiff
+from model.features.close_to_low import CloseToLow
+from model.features.close_to_sma import CloseToSma
+from model.features.close_to_volume import CloseToVolume
+from model.features.high_to_close import HighToClose
+from model.features.rsi import RSI
+from model.features.volume import Volume
 
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
@@ -27,8 +37,12 @@ from model.evaluation.evaluate import evaluate
 def main():
     train_data = get_data(datetime(2024, 1, 1), datetime(2024, 11, 1))
     test_data = get_data(datetime(2024, 11, 1), datetime(2025, 1, 1))
+    #
+    # model = Lstm()
+    # model.train(train_data)
+    # model.test(test_data)
 
-    model = Lstm()
+    model = SoftmaxRegression()
     model.train(train_data)
     model.test(test_data)
 

@@ -28,7 +28,9 @@ class SoftmaxRegression(Model):
     __LOG = Logger(__NAME)
 
     def __init__(self):
-        self.__features: List[Feature] = [AverageTrueRange(18), Volume(), RSI(8), CloseDiff(), HighToClose(), CloseToLow(), CloseToSma(8), HourOfDaySine(), HourOfDayCosine()]
+        bins = 7
+        self.__features: List[Feature] = [AverageTrueRange(18), Volume().binned_equally(bins), RSI(8).binned_equally(9), CloseDiff().binned_equally(bins),
+                                          HighToClose().binned_equally(bins), CloseToLow().binned_equally(bins), CloseToSma(8), HourOfDaySine(), HourOfDayCosine()]
         neg_perc = 10
         pos_perc = 100 - neg_perc
         self.__target = Target(PercentileLabelingPolicy(neg_perc, pos_perc))
@@ -37,7 +39,8 @@ class SoftmaxRegression(Model):
             "max_iter": 200,
             "C": 1.0,
             "features": [feature.name() for feature in self.__features],
-            "target": f'Percentile_{neg_perc}_{pos_perc}'
+            "target": f'Percentile_{neg_perc}_{pos_perc}',
+            "bins": bins
         }
         self.model = LogisticRegression(solver=self.params['solver'], max_iter=self.params['max_iter'],
                                         C=self.params['C'])
