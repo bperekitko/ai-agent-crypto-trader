@@ -12,14 +12,15 @@ from keras.src.utils import to_categorical
 from sklearn.utils.class_weight import compute_class_weight
 
 from data.raw_data_columns import DataColumns
-from model.evaluation.evaluate import evaluate
+from model.evaluation.evaluate import evaluate_for_highs_and_lows
 from model.features.close_price_prct_diff import CloseDiff
 from model.features.close_to_low import CloseToLow
-from model.features.close_to_sma import CloseToSma
 from model.features.feature import Feature
 from model.features.high_to_close import HighToClose
+from model.features.hour_of_day import HourOfDaySine, HourOfDayCosine
 from model.features.rsi import RSI
 from model.features.target import Target, PercentileLabelingPolicy
+from model.features.volume import Volume
 from model.model import Model
 from utils.log import Logger
 
@@ -29,15 +30,10 @@ class Lstm(Model):
     __LOG = Logger(__NAME)
 
     def __init__(self):
-        self.__features: List[Feature] = [
-            # AverageTrueRange(18),
-            # Volume(),
-            RSI(8),
-            CloseDiff(),
-            HighToClose(),
-            CloseToLow(),
-            CloseToSma(8),
-        ]
+        self.__features: List[Feature] = [CloseDiff(), HighToClose(), CloseToLow(), Volume(), RSI(8), HourOfDaySine(), HourOfDayCosine()]
+        neg_perc = 25
+        pos_perc = 100 - neg_perc
+        self.__target = Target(PercentileLabelingPolicy(neg_perc, pos_perc))
         self.params = {
             'sequence_window': 12,
             'layers': ['LSTM-100', 'LSTM-100', 'Dense-64', 'Dense-3'],
@@ -46,14 +42,16 @@ class Lstm(Model):
             'batch_size': 4,
             'early_stopping_metric': 'val_precision',
             'early_stopping_patience': 5,
-            'target_policy': 'percentile_50_50',
+            "target": f'Percentile_{neg_perc}_{pos_perc}',
             'features': [f.name() for f in self.__features]
         }
 
         self.__model = Sequential()
 
-
-        self.__target = Target(PercentileLabelingPolicy(50, 50))
+    def set_neg_perc(self, neg_perc):
+        pos_perc = 100 - neg_perc
+        self.__target = Target(PercentileLabelingPolicy(neg_perc, pos_perc))
+        self.params["target"] = f'Percentile_{neg_perc}_{pos_perc}'
 
     def name(self) -> str:
         return self.__NAME
@@ -63,11 +61,13 @@ class Lstm(Model):
         self.__LOG.info(json.dumps(self.params, indent=4))
 
     def predict(self, df: pd.DataFrame):
-        x, y_true = self.prepare_data(df)
-        return self.__model.predict(x)
+        train_data = self.prepare_data(df)
+        x_train, _ = self.__to_sequences(train_data)
+        return self.__model.predict(x_train)
 
     def train(self, df: pd.DataFrame):
-        x_train, y_train = self.prepare_data(df)
+        train_data = self.prepare_data(df)
+        x_train, y_train = self.__to_sequences(train_data)
 
         y_train_labels = np.argmax(y_train, axis=1)
         class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(y_train_labels), y=y_train_labels)
@@ -83,7 +83,6 @@ class Lstm(Model):
         self.__model.add(Dense(units=3, activation='softmax'))
         self.__model.compile(optimizer=Adam(learning_rate=self.params['learning_rate']), loss=CategoricalCrossentropy, metrics=['precision'])
 
-
         early_stopping = EarlyStopping(monitor=self.params['early_stopping_metric'], patience=self.params['early_stopping_patience'], restore_best_weights=True)
         self.__model.fit(x_train, y_train, epochs=self.params['epochs'], batch_size=self.params['batch_size'], validation_split=0.1, class_weight=class_weights_for_model,
                          callbacks=[early_stopping])
@@ -91,20 +90,22 @@ class Lstm(Model):
     def test(self, df: pd.DataFrame):
         self.__LOG.info(f'Testing model {self.__NAME}')
         probabilities = self.predict(df)
-        _, test_y = self.prepare_data(df)
-        y_test = np.argmax(test_y, axis=1)
+        train_data = self.prepare_data(df)
+        evaluate_for_highs_and_lows(probabilities, self.params, self.__NAME, train_data, self.__target.threshold_up, self.__target.threshold_down)
 
-        evaluate(probabilities, y_test, self.params, self.__NAME)
+        # _, test_y = self.__to_sequences(train_data)
+        # evaluate(probabilities, y_test, self.params, self.__NAME)
 
     def prepare_data(self, df):
-        train_data = df[[DataColumns.DATE_CLOSE]].copy()
+        result_data = df[[DataColumns.DATE_CLOSE, DataColumns.HIGH, DataColumns.LOW, DataColumns.CLOSE]].copy()
         for feature in self.__features:
-            train_data[feature.name()] = feature.calculate(df).values
+            result_data[feature.name()] = feature.calculate(df).values
 
-        train_data[self.__target.name()] = self.__target.calculate(df)
-        train_data.dropna(inplace=True)
+        result_data[self.__target.name()] = self.__target.calculate(df)
+        return result_data.dropna()
 
-        x = train_data.drop([DataColumns.DATE_CLOSE, DataColumns.TARGET], axis=1).values
+    def __to_sequences(self, train_data):
+        x = train_data.drop([DataColumns.DATE_CLOSE, DataColumns.TARGET, DataColumns.HIGH, DataColumns.LOW, DataColumns.CLOSE], axis=1).values
         y = train_data[DataColumns.TARGET]
         one_hot_encoded_y = to_categorical(y)
         return self.__create_sequences(x, one_hot_encoded_y)

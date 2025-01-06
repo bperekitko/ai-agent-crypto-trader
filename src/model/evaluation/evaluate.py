@@ -10,10 +10,54 @@ from sklearn.metrics import precision_score, recall_score, f1_score, matthews_co
 from sklearn.metrics import roc_auc_score
 
 from model.evaluation import current_dir_path
+from model.features.target import TargetLabel
 from utils.add_to_excel import append_df_to_excel
 from utils.log import Logger
 
 __CONFIDENCE_LEVELS = [0.0, 0.4, 0.45, 0.5, 0.55, 0.6, 0.7, 0.8]
+
+
+def evaluate_for_highs_and_lows(probabilities, model_params, model_name, input_data: pd.DataFrame, threshold_up_provider, threshold_down_provider):
+    df = input_data.copy()
+
+    y_pred = np.argmax(probabilities, axis=1)
+    dropna = False
+    if len(y_pred) < len(df):
+        na_padding = [np.nan] * (len(df) - len(y_pred))
+        y_pred = na_padding + list(y_pred)
+        dropna = True
+
+    df['pred'] = y_pred
+    df['high_percent_change'] = ((df['high'] - df['close'].shift(1)) / df['close'].shift(1)) * 100
+    df['low_percent_change'] = ((df['low'] - df['close'].shift(1)) / df['close'].shift(1)) * 100
+    df['threshold_up'] = threshold_up_provider(df)
+    df['threshold_down'] = threshold_down_provider(df)
+
+    def adjust_target(df_row):
+        if df_row['pred'] == TargetLabel.UP.value:
+            if df_row['high_percent_change'] > df_row['threshold_up']:
+                return TargetLabel.UP.value
+            else:
+                return df_row['target']
+        elif df_row['pred'] == TargetLabel.DOWN.value:
+            if df_row['low_percent_change'] < df_row['threshold_down']:
+                return TargetLabel.DOWN.value
+            else:
+                return df_row['target']
+        else:
+            if df_row['high_percent_change'] > df_row['threshold_up']:
+                return TargetLabel.UP.value
+            elif df_row['low_percent_change'] < df_row['threshold_down']:
+                return TargetLabel.DOWN.value
+            else:
+                return TargetLabel.NEUTRAL.value
+
+    if dropna:
+        df.dropna(inplace=True)
+
+    df['adjusted_target'] = df.apply(adjust_target, axis=1)
+    model_params['adjusted_target'] = True
+    evaluate(probabilities, df['adjusted_target'], model_params, model_name)
 
 
 def evaluate(probabilities, y_test, model_params, model_name):
@@ -38,6 +82,11 @@ def __evaluate_with_confidence(model_name, model_params, probabilities, y_test, 
     brier_scores = [brier_score_loss((y_test == i).astype(int), probabilities[:, i]) for i in
                     range(probabilities.shape[1])]
     y_pred = np.argmax(probabilities, axis=1)
+
+    unique_values, counts = np.unique(y_pred, return_counts=True)
+    count_dict = {0: 0, 1: 0, 2: 0}
+    count_dict.update(dict(zip(unique_values, counts)))
+
     kappa_score = cohen_kappa_score(y_test, y_pred)
 
     accuracy = accuracy_score(y_test, y_pred)
@@ -48,7 +97,10 @@ def __evaluate_with_confidence(model_name, model_params, probabilities, y_test, 
     results = {
         'Model': f'{model_name}',
         'Confidence threshold': confidence,
-        'Confident predictions count': len(y_test) / original_pred_count,
+        'Trade Signals Frequency': (count_dict[TargetLabel.UP.value] + count_dict[TargetLabel.DOWN.value]) / original_pred_count,
+        'SignalsUP': count_dict[TargetLabel.UP.value],
+        'SignalsDOWN': count_dict[TargetLabel.DOWN.value],
+        'NoTrade': count_dict[TargetLabel.NEUTRAL.value],
         'Accuracy': accuracy,
         'Precision': precision,
         'Recall': recall,

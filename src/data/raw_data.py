@@ -74,7 +74,7 @@ def refresh_data():
     end_time = datetime(2024, 12, 31)
     print(f"Downloading BTC/USD data from {start_time} to {end_time}")
     __download_data_to_file(start_time, end_time)
-    add_target_to_data(RAW_DATA_FILE_PATH)
+    # add_target_to_data(RAW_DATA_FILE_PATH)
 
 
 def get_data(start_date: datetime, end_date: datetime):
