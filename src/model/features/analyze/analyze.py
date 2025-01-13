@@ -4,7 +4,7 @@ import numpy as np
 from model.features.analyze import current_dir_path_for
 from scipy.stats import boxcox
 
-from utils.log import Logger
+from utils.log import get_logger
 
 
 def analyze(values, feature_name):
@@ -47,7 +47,7 @@ def __describe(feature_name, values):
     skewness = values.skew()
     kurtosis = values.kurt()
 
-    logger = Logger(feature_name)
+    logger = get_logger(feature_name)
 
     # Wyświetlanie wyników
 

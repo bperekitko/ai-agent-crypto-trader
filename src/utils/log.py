@@ -1,23 +1,44 @@
-from datetime import datetime
+import logging
+from logging import DEBUG
+
+from config import LOG_PATH
 
 
-class Logger:
-    __NO_COLOR = 0
-    __YELLOW = 33
-    __RED = 31
-    def __init__(self, name):
-        self.name = name
+class CustomFormatter(logging.Formatter):
+    grey = "\x1b[38;20m"
+    yellow = "\x1b[33;20m"
+    red = "\x1b[31;20m"
+    bold_red = "\x1b[31;1m"
+    reset = "\x1b[0m"
+    file_name_format = " (%(filename)s:%(lineno)d)"
+    format = "[%(asctime)s] [%(name)s] [%(levelname)s]: %(message)s"
 
-    def info(self, message):
-        self.__log(message, 'INFO', self.__NO_COLOR)
+    FORMATS = {
+        logging.DEBUG: grey + format + reset,
+        logging.INFO: grey + format + reset,
+        logging.WARNING: yellow + format + file_name_format + reset,
+        logging.ERROR: red + format + file_name_format + reset,
+        logging.CRITICAL: bold_red + format + file_name_format + reset
+    }
 
-    def warn(self, message):
-        self.__log(message, 'WARN', self.__YELLOW)
+    def format(self, record):
+        log_fmt = self.FORMATS.get(record.levelno)
+        formatter = logging.Formatter(log_fmt)
+        return formatter.format(record)
 
-    def error(self, message):
-        self.__log(message, 'ERROR', self.__RED)
 
-    def __log(self, message, level, color):
-        current_time = datetime.now()
-        formatted_time = current_time.strftime("%Y-%m-%d %H:%M:%S")
-        print(f'\033[{color}m [{level}] [{formatted_time}] [{self.name}]: {message}\033[0m')
+def get_logger(name: str):
+    logger = logging.getLogger(name)
+    logger.setLevel(DEBUG)
+
+    file_handler = logging.FileHandler(LOG_PATH + '/app.log')
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(logging.Formatter("[%(asctime)s] [%(levelname)s]: %(message)s (%(filename)s:%(lineno)d)"))
+
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.DEBUG)
+    console_handler.setFormatter(CustomFormatter())
+
+    logger.addHandler(console_handler)
+    logger.addHandler(file_handler)
+    return logger

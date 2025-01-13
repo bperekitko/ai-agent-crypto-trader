@@ -25,12 +25,12 @@ from model.features.target import Target, PercentileLabelingPolicy
 from model.features.volume import Volume
 from model.model import Model
 from model.saved import SAVED_MODELS_PATH
-from utils.log import Logger
+from utils.log import get_logger
 
 
 class Lstm(Model):
     __NAME = 'lstm'
-    __LOG = Logger(__NAME)
+    __LOG = get_logger(__NAME)
 
     def __init__(self):
         super().__init__()

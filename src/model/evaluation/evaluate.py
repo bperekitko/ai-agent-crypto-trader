@@ -13,7 +13,7 @@ from model.evaluation import current_dir_path
 from model.features.target import TargetLabel
 from model.model import Model
 from utils.add_to_excel import append_df_to_excel
-from utils.log import Logger
+from utils.log import get_logger
 
 __CONFIDENCE_LEVELS = [0.0, 0.4, 0.45, 0.5, 0.55, 0.6, 0.7, 0.8]
 
@@ -62,7 +62,7 @@ def evaluate_for_highs_and_lows(probabilities, model: Model, input_data: pd.Data
 
 
 def evaluate(probabilities, y_test, model: Model):
-    logger = Logger(model.name())
+    logger = get_logger(model.name())
     logger.info(f'Evaluating model {model.name()}')
     original_count = len(probabilities)
 
