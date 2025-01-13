@@ -1,4 +1,5 @@
 import json
+import os
 from typing import List
 
 import numpy as np
@@ -8,6 +9,7 @@ from keras.src.callbacks import EarlyStopping
 from keras.src.layers import LSTM, Dense, Dropout, Input
 from keras.src.losses.losses import CategoricalCrossentropy
 from keras.src.optimizers import Adam
+from keras.src.saving import load_model
 from keras.src.utils import to_categorical
 from sklearn.utils.class_weight import compute_class_weight
 
@@ -22,6 +24,7 @@ from model.features.rsi import RSI
 from model.features.target import Target, PercentileLabelingPolicy
 from model.features.volume import Volume
 from model.model import Model
+from model.saved import SAVED_MODELS_PATH
 from utils.log import Logger
 
 
@@ -30,11 +33,14 @@ class Lstm(Model):
     __LOG = Logger(__NAME)
 
     def __init__(self):
-        self.__features: List[Feature] = [CloseDiff().binned_equally(15), HighToClose(), CloseToLow(), Volume(), RSI(8), HourOfDaySine(), HourOfDayCosine()]
+        super().__init__()
+        self.__version = 0.01
+        self.__features: List[Feature] = [CloseDiff(), HighToClose(), CloseToLow(), Volume(), RSI(8), HourOfDaySine(), HourOfDayCosine()]
         neg_perc = 25
         pos_perc = 100 - neg_perc
         self.__target = Target(PercentileLabelingPolicy(neg_perc, pos_perc))
         self.params = {
+            'loss_function_name': 'categorical_crossentropy',
             'sequence_window': 12,
             'layers': ['LSTM-100', 'LSTM-100', 'Dense-64', 'Dense-3'],
             'learning_rate': 0.001,
@@ -48,10 +54,8 @@ class Lstm(Model):
 
         self.__model = Sequential()
 
-    def set_neg_perc(self, neg_perc):
-        pos_perc = 100 - neg_perc
-        self.__target = Target(PercentileLabelingPolicy(neg_perc, pos_perc))
-        self.params["target"] = f'Percentile_{neg_perc}_{pos_perc}'
+    def version(self) -> str:
+        return f'{self.__version}'
 
     def name(self) -> str:
         return self.__NAME
@@ -81,7 +85,7 @@ class Lstm(Model):
         self.__model.add(Dense(units=64, activation='relu'))
         self.__model.add(Dropout(0.2))
         self.__model.add(Dense(units=3, activation='softmax'))
-        self.__model.compile(optimizer=Adam(learning_rate=self.params['learning_rate']), loss=CategoricalCrossentropy, metrics=['precision'])
+        self.__model.compile(optimizer=Adam(learning_rate=self.params['learning_rate']), loss=self.params['loss_function_name'], metrics=['precision'])
 
         early_stopping = EarlyStopping(monitor=self.params['early_stopping_metric'], patience=self.params['early_stopping_patience'], restore_best_weights=True)
         self.__model.fit(x_train, y_train, epochs=self.params['epochs'], batch_size=self.params['batch_size'], validation_split=0.1, class_weight=class_weights_for_model,
@@ -91,7 +95,7 @@ class Lstm(Model):
         self.__LOG.info(f'Testing model {self.__NAME}')
         probabilities = self.predict(df)
         train_data = self.prepare_data(df)
-        evaluate_for_highs_and_lows(probabilities, self.params, self.__NAME, train_data, self.__target.threshold_up, self.__target.threshold_down)
+        evaluate_for_highs_and_lows(probabilities, self, train_data, self.__target.threshold_up, self.__target.threshold_down)
 
         # _, test_y = self.__to_sequences(train_data)
         # evaluate(probabilities, y_test, self.params, self.__NAME)
@@ -117,6 +121,14 @@ class Lstm(Model):
             y.append(target[i + self.params['sequence_window'] - 1])
         return np.array(x), np.array(y)
 
-    def set_features(self, features):
-        self.__features = features
-        self.params['features'] = [f.name() for f in self.__features]
+    def save(self):
+        model_path = os.path.join(SAVED_MODELS_PATH, f'{self.name()}_{self.version()}.keras')
+        self.__model.save(model_path)
+        with open(os.path.join(SAVED_MODELS_PATH, f'{self.name()}_{self.version()}.json'), 'w') as file:
+            json.dump(self.params, file, indent=4)
+
+    def load(self, version: str):
+        model_path = os.path.join(SAVED_MODELS_PATH, f'{self.name()}_{version}.h5')
+        self.__model = load_model(model_path)
+        self.__version = version
+        return self

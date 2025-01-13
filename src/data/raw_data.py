@@ -3,8 +3,8 @@ from datetime import datetime
 
 import pandas as pd
 from binance.client import Client
+
 from .raw_data_columns import DataColumns
-from .technical_indicators import add_target_to_data
 
 DATA_PATH = os.path.dirname(__file__)
 RAW_DATA_FILE_PATH = os.path.join(DATA_PATH, "raw_binance_data_BTCUSDT_1h.parquet")
@@ -74,7 +74,6 @@ def refresh_data():
     end_time = datetime(2024, 12, 31)
     print(f"Downloading BTC/USD data from {start_time} to {end_time}")
     __download_data_to_file(start_time, end_time)
-    # add_target_to_data(RAW_DATA_FILE_PATH)
 
 
 def get_data(start_date: datetime, end_date: datetime):

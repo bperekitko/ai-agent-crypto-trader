@@ -6,6 +6,7 @@ from pandas import DataFrame
 
 from data.raw_data_columns import DataColumns
 from model.features.feature import Feature
+from utils.log import Logger
 
 
 class TargetLabel(Enum):
@@ -111,7 +112,7 @@ class PercentileLabelingPolicy(TargetLabelingPolicy):
 
             self.calculated_threshold_up = positive_percentiles.loc[f'{self.__positive_percentile}%']
             self.calculated_threshold_down = negative_percentiles.loc[f'{self.__negative_percentile}%']
-            print(f'Percentiles DOWN: {self.__negative_percentile}, UP: {self.__positive_percentile}. Calc thresholds: {self.calculated_threshold_up}, {self.calculated_threshold_down}')
+            Logger('target').info(f'Percentiles DOWN: {self.__negative_percentile}, UP: {self.__positive_percentile}. Calc thresholds: {self.calculated_threshold_up}, {self.calculated_threshold_down}')
         return df[DataColumns.CLOSE_PERCENT_CHANGE].apply(self.__calculate_labels)
 
     def __calculate_labels(self, row):

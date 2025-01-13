@@ -1,14 +1,15 @@
 import json
+import os.path
 from typing import List
-from unittest.mock import inplace
 
 import numpy as np
 import pandas as pd
+from joblib import dump, load
 from sklearn.linear_model import LogisticRegression
 from sklearn.utils.class_weight import compute_class_weight
 
 from data.raw_data_columns import DataColumns
-from model.evaluation.evaluate import evaluate, evaluate_for_highs_and_lows
+from model.evaluation.evaluate import evaluate_for_highs_and_lows
 from model.features.atr import AverageTrueRange
 from model.features.close_price_prct_diff import CloseDiff
 from model.features.close_to_low import CloseToLow
@@ -20,6 +21,7 @@ from model.features.rsi import RSI
 from model.features.target import Target, PercentileLabelingPolicy
 from model.features.volume import Volume
 from model.model import Model
+from model.saved import SAVED_MODELS_PATH
 from utils.log import Logger
 
 
@@ -28,6 +30,8 @@ class SoftmaxRegression(Model):
     __LOG = Logger(__NAME)
 
     def __init__(self):
+        super().__init__()
+        self.__version = 0.01
         bins = 7
         self.__features: List[Feature] = [AverageTrueRange(18), Volume().binned_equally(bins), RSI(8).binned_equally(9), CloseDiff().binned_equally(bins),
                                           HighToClose().binned_equally(bins), CloseToLow().binned_equally(bins), CloseToSma(8), HourOfDaySine(), HourOfDayCosine()]
@@ -44,6 +48,9 @@ class SoftmaxRegression(Model):
         }
         self.model = LogisticRegression(solver=self.params['solver'], max_iter=self.params['max_iter'],
                                         C=self.params['C'])
+
+    def version(self) -> str:
+        return f'{self.__version}'
 
     def name(self):
         return self.__NAME
@@ -81,7 +88,7 @@ class SoftmaxRegression(Model):
         probabilities = self.predict(df)
         input_data = self.prepare_for_predict(df)
 
-        evaluate_for_highs_and_lows(probabilities, self.params, self.__NAME, input_data, self.__target.threshold_up, self.__target.threshold_down)
+        evaluate_for_highs_and_lows(probabilities, self, input_data, self.__target.threshold_up, self.__target.threshold_down)
         # evaluate(probabilities, input_data[DataColumns.TARGET], self.params, self.__NAME)
 
     def __prepare_train_data(self, df) -> pd.DataFrame:
@@ -99,6 +106,14 @@ class SoftmaxRegression(Model):
         data[self.__target.name()] = self.__target.calculate(df)
         return data.dropna()
 
-    def set_features(self, features):
-        self.__features = features
-        self.params['features'] = [f.name() for f in self.__features]
+    def save(self):
+        model_path = os.path.join(SAVED_MODELS_PATH, f'{self.name()}_{self.version()}.joblib')
+        dump(self.model, model_path)
+        with open(os.path.join(SAVED_MODELS_PATH, f'{self.name()}_{self.version()}.json'), 'w') as file:
+            json.dump(self.params, file, indent=4)
+
+    def load(self, version: str):
+        model_path = os.path.join(SAVED_MODELS_PATH, f'{self.name()}_{version}.joblib')
+        self.model = load(model_path)
+        self.__version = version
+        return self
