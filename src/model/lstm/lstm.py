@@ -1,13 +1,16 @@
-import json
 import os
+import pickle
 from typing import List
+import pandas as pd
+
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+pd.set_option('display.max_columns', None)  # Displaying all columns when printing
+pd.set_option('display.expand_frame_repr', False)  # Disable line wrap when printing
 
 import numpy as np
-import pandas as pd
 from keras import Sequential
 from keras.src.callbacks import EarlyStopping
 from keras.src.layers import LSTM, Dense, Dropout, Input
-from keras.src.losses.losses import CategoricalCrossentropy
 from keras.src.optimizers import Adam
 from keras.src.saving import load_model
 from keras.src.utils import to_categorical
@@ -26,6 +29,7 @@ from model.features.volume import Volume
 from model.model import Model
 from model.saved import SAVED_MODELS_PATH
 from utils.log import get_logger
+
 
 
 class Lstm(Model):
@@ -62,12 +66,26 @@ class Lstm(Model):
 
     def describe(self) -> None:
         self.__LOG.info(f'{self.__NAME}')
-        self.__LOG.info(json.dumps(self.params, indent=4))
+        self.__LOG.info(self.params)
+        for feature in self.__features:
+            if hasattr(feature, 'is_fitted'):
+                self.__LOG.debug(f'{feature.name()} fitted: {feature.is_fitted}')
+        self.__LOG.debug(f'Target UP threshold: {self.__target.threshold_up(pd.DataFrame({'col': [1]})).values[0] * 100}%')
+        self.__LOG.debug(f'DOWN: {self.__target.threshold_down(pd.DataFrame({'col': [1]})).values[0] * 100}%')
+
+    def get_thresholds(self):
+        target_up = self.__target.threshold_up(pd.DataFrame({'col': [1]})).values[0]
+        target_down = self.__target.threshold_down(pd.DataFrame({'col': [1]})).values[0]
+        return target_up, target_down
 
     def predict(self, df: pd.DataFrame):
         train_data = self.prepare_data(df)
         x_train, _ = self.__to_sequences(train_data)
-        return self.__model.predict(x_train)
+
+        target_up = self.__target.threshold_up(pd.DataFrame({'col': [1]})).values[0]
+        target_down = self.__target.threshold_down(pd.DataFrame({'col': [1]})).values[0]
+
+        return self.__model.predict(x_train), target_up, target_down
 
     def train(self, df: pd.DataFrame):
         train_data = self.prepare_data(df)
@@ -93,7 +111,7 @@ class Lstm(Model):
 
     def test(self, df: pd.DataFrame):
         self.__LOG.info(f'Testing model {self.__NAME}')
-        probabilities = self.predict(df)
+        probabilities, _, _ = self.predict(df)
         train_data = self.prepare_data(df)
         evaluate_for_highs_and_lows(probabilities, self, train_data, self.__target.threshold_up, self.__target.threshold_down)
 
@@ -124,11 +142,19 @@ class Lstm(Model):
     def save(self):
         model_path = os.path.join(SAVED_MODELS_PATH, f'{self.name()}_{self.version()}.keras')
         self.__model.save(model_path)
-        with open(os.path.join(SAVED_MODELS_PATH, f'{self.name()}_{self.version()}.json'), 'w') as file:
-            json.dump(self.params, file, indent=4)
+        data_to_serialize = {k: v for k, v in self.__dict__.items() if k != '__model'}
+        with open(os.path.join(SAVED_MODELS_PATH, f'{self.name()}_{self.version()}_data.pkl'), 'wb') as file:
+            pickle.dump(data_to_serialize, file)
 
-    def load(self, version: str):
-        model_path = os.path.join(SAVED_MODELS_PATH, f'{self.name()}_{version}.h5')
-        self.__model = load_model(model_path)
-        self.__version = version
-        return self
+    @classmethod
+    def load(cls, version: str):
+        model_path = os.path.join(SAVED_MODELS_PATH, f'{Lstm.__NAME}_{version}.keras')
+        other_data_path = os.path.join(SAVED_MODELS_PATH, f'{Lstm.__NAME}_{version}_data.pkl')
+
+        new_instance = cls()
+        with open(other_data_path, 'rb') as file:
+            other_data = pickle.load(file)
+            new_instance.__dict__.update(other_data)
+        new_instance.__model = load_model(model_path)
+
+        return new_instance

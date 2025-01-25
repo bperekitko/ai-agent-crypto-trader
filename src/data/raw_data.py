@@ -82,7 +82,7 @@ def get_data(start_date: datetime, end_date: datetime):
     return df.loc[filtered_by_dates]
 
 
-def get_last_x_intervals_1h(limit: int):
+def get_last_x_intervals(limit: int, symbol="BTCUSDT", interval ='1h'):
     client = Client()
-    historical_klines = client.get_historical_klines("BTCUSDT", Client.KLINE_INTERVAL_1HOUR, limit=limit)
+    historical_klines = client.get_historical_klines(symbol, interval, limit=limit)
     return __to_data_frame(historical_klines)
