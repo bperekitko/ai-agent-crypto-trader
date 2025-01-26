@@ -1,9 +1,8 @@
-import json
 from datetime import datetime
 from typing import List
 
 from binance import Client, ThreadedWebsocketManager
-from binance.exceptions import  BinanceAPIException
+from binance.exceptions import BinanceAPIException
 
 from config import IS_TEST, BINANCE_FUTURES_API_KEY, BINANCE_FUTURES_SECRET_KEY, ENVIRONMENT
 from data.exchange.candlestick import Candlestick
@@ -41,16 +40,19 @@ class BinanceClient(ExchangeClient):
     def place_order(self, order: Order):
         return  self.client.futures_create_order(**order.as_params())
 
+    @_with_exceptions_handled
     def place_batch_orders(self, orders: List[Order]):
         batch_orders = [o.as_params() for o in orders]
         return self.client.futures_place_batch_order(batchOrders=batch_orders)
 
+    @_with_exceptions_handled
     def cancel_all_orders(self, symbol: str):
         return self.client.futures_cancel_all_open_orders(symbol=symbol)
 
     def get_trades(self) -> List[Trade]:
         return []
 
+    @_with_exceptions_handled
     def get_current_positions(self, symbol):
         response = self.client.futures_position_information(symbol=symbol)
         return list(map(lambda pos: Position(pos['symbol'], float(pos['positionAmt']), float(pos['entryPrice']), float(pos['breakEvenPrice']), float(pos['markPrice']),
@@ -64,6 +66,7 @@ class BinanceClient(ExchangeClient):
         self.__LOG.info(f'Successfully started')
         self.twm.join()
 
+    @_with_exceptions_handled
     def get_last_klines(self, limit, symbol, interval) -> List[Candlestick]:
         klines = self.client.futures_continous_klines(pair=symbol, interval=interval, limit=limit, contractType='PERPETUAL')
         candlesticks = map(
@@ -71,9 +74,11 @@ class BinanceClient(ExchangeClient):
                                   float(k[5])), klines)
         return list(candlesticks)
 
+    @_with_exceptions_handled
     def change_leverage(self, leverage: int, symbol: str):
         self.client.futures_change_leverage(symbol=symbol, leverage=leverage)
 
+    @_with_exceptions_handled
     def get_balance(self, asset: str):
         balances = self.client.futures_account_balance()
         asset_balance = next((balance for balance in balances if balance['asset'] == asset), None)

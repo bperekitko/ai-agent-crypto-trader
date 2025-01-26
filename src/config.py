@@ -3,7 +3,7 @@ import os
 from dotenv import load_dotenv
 
 load_dotenv()
-LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../')
+LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../logs')
 
 ENVIRONMENT = 'TEST' if os.getenv("ENVIRONMENT") is None else os.getenv('ENVIRONMENT')
 IS_TEST = ENVIRONMENT != 'PROD'
