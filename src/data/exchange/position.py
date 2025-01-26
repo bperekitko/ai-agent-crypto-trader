@@ -14,11 +14,6 @@ class Position:
         self.un_realized_profit = un_realized_profit
         self.liquidation_price = liquidation_price
 
-    def convert_to_market_close_order(self) -> Order:
-        closing_side = self.side.reversed()
-        qty = abs(self.position_amount)
-        return MarketOrder(self.symbol, side=closing_side, quantity=qty)
-
     def __str__(self):
         return json.dumps(
             {

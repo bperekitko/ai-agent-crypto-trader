@@ -3,10 +3,12 @@ from datetime import datetime
 from typing import List
 
 from binance import Client, ThreadedWebsocketManager
+from binance.exceptions import  BinanceAPIException
 
 from config import IS_TEST, BINANCE_FUTURES_API_KEY, BINANCE_FUTURES_SECRET_KEY, ENVIRONMENT
 from data.exchange.candlestick import Candlestick
 from data.exchange.exchange_client import ExchangeClient
+from data.exchange.exchange_error import ExchangeError
 from data.exchange.klines_event_listener import KlinesEventListener
 from data.exchange.order import Order
 from data.exchange.position import Position
@@ -22,12 +24,22 @@ class BinanceClient(ExchangeClient):
         self.twm = ThreadedWebsocketManager(testnet=IS_TEST, api_key=BINANCE_FUTURES_API_KEY, api_secret=BINANCE_FUTURES_SECRET_KEY)
         self.klines_events_listeners: {str: List[KlinesEventListener]} = {}
 
+    @staticmethod
+    def _with_exceptions_handled(func):
+        def inner_func(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except BinanceAPIException as exc:
+                raise ExchangeError(exc.message) from exc
+        return inner_func
+
     def add_klines_event_listener(self, listener: KlinesEventListener, symbol: str):
         has_symbol = symbol in self.klines_events_listeners
         self.klines_events_listeners[symbol] = self.klines_events_listeners[symbol] + [listener] if has_symbol else [listener]
 
+    @_with_exceptions_handled
     def place_order(self, order: Order):
-        return self.client.futures_create_order(**order.as_params())
+        return  self.client.futures_create_order(**order.as_params())
 
     def place_batch_orders(self, orders: List[Order]):
         batch_orders = [o.as_params() for o in orders]

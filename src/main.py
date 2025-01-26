@@ -4,7 +4,7 @@ from trading.btc_trader import BtcTrader
 
 def main():
     client = BinanceClient()
-    trader = BtcTrader(client)
+    BtcTrader(client).start()
     client.start()
 
 

@@ -1,6 +1,7 @@
 import logging
-from logging import DEBUG
 from datetime import datetime
+from logging import DEBUG
+
 from config import LOG_PATH
 
 
@@ -10,15 +11,14 @@ class CustomFormatter(logging.Formatter):
     red = "\x1b[31;20m"
     bold_red = "\x1b[31;1m"
     reset = "\x1b[0m"
-    file_name_format = " (%(filename)s:%(lineno)d)"
     format = "[%(asctime)s] [%(threadName)s] [%(name)s] [%(levelname)s]: %(message)s"
 
     FORMATS = {
         logging.DEBUG: grey + format + reset,
         logging.INFO: grey + format + reset,
-        logging.WARNING: yellow + format + file_name_format + reset,
-        logging.ERROR: red + format + file_name_format + reset,
-        logging.CRITICAL: bold_red + format + file_name_format + reset
+        logging.WARNING: yellow + format + reset,
+        logging.ERROR: red + format + reset,
+        logging.CRITICAL: bold_red + format + reset
     }
 
     def format(self, record):
@@ -36,7 +36,7 @@ def get_logger(name: str):
 
     file_handler = logging.FileHandler(LOG_PATH + f'/app-{datetime.now().strftime('%Y-%m-%d')}.log')
     file_handler.setLevel(logging.DEBUG)
-    file_handler.setFormatter(logging.Formatter("[%(asctime)s] [%(name)s] [%(levelname)s]: %(message)s (%(filename)s:%(lineno)d)"))
+    file_handler.setFormatter(logging.Formatter("[%(asctime)s] [%(name)s] [%(levelname)s]: %(message)s"))
 
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.DEBUG)
