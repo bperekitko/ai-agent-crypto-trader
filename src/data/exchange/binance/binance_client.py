@@ -59,11 +59,9 @@ class BinanceClient(ExchangeClient):
                                              float(pos['unRealizedProfit']), float(pos['liquidationPrice'])), response))
 
     def start(self):
-        self.__LOG.info(f'Starting on [{ENVIRONMENT}] env')
         self.twm.start()
         for symbol in self.klines_events_listeners.keys():
             self.twm.start_kline_futures_socket(callback=self.handle_kline_message, symbol=symbol, interval=Client.KLINE_INTERVAL_1HOUR)
-        self.__LOG.info(f'Successfully started')
         self.twm.join()
 
     @_with_exceptions_handled
