@@ -34,7 +34,7 @@ def get_logger(name: str):
     if logger.hasHandlers():
         return logger
 
-    file_handler = logging.FileHandler(LOG_PATH + f'/app-{datetime.now().strftime('%Y-%m-%d')}.log')
+    file_handler = logging.FileHandler(LOG_PATH + f"/app-{datetime.now().strftime('%Y-%m-%d')}.log")
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(logging.Formatter("[%(asctime)s] [%(name)s] [%(levelname)s]: %(message)s"))
 
