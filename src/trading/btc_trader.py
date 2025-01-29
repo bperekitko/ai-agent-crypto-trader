@@ -4,12 +4,13 @@ from datetime import timedelta
 import numpy as np
 import pandas as pd
 
+from config import ENVIRONMENT
 from data.convert_to_df import convert_to_data_frame
 from data.exchange.candlestick import Candlestick
 from data.exchange.exchange_client import ExchangeClient
 from data.exchange.exchange_error import ExchangeError
 from data.exchange.klines_event_listener import KlinesEventListener
-from data.exchange.order import MarketOrder, OrderSide, Order
+from data.exchange.order import MarketOrder, OrderSide, Order, StopLimitOrder
 from model.features.target import TargetLabel
 from model.lstm.lstm import Lstm
 from utils.deque import Dequeue
@@ -34,6 +35,7 @@ class BtcTrader(KlinesEventListener):
             self.predictions_klines.push(kline)
 
     def start(self):
+        _LOG.info(f'Starting on {ENVIRONMENT} env')
         _LOG.info(f'Starting current balance: {self.starting_balance} $BNFCR')
         _LOG.info(f'Will be using {self.starting_balance * MAX_BALANCE_USED_PER_POSITION} $BNFCR per position')
 
@@ -89,7 +91,10 @@ class BtcTrader(KlinesEventListener):
             self.trading_client.cancel_all_orders(self.trading_client.BTC_USDT_SYMBOL)
             trade_quantity = position.position_amount * 2
 
-            new_order = MarketOrder(ExchangeClient.BTC_USDT_SYMBOL, side, round(trade_quantity, 3), current_price)
+            price_activation_threshold = 0.0005
+            order_price_activation = (1 + price_activation_threshold) * current_price if side == OrderSide.BUY else (1 - price_activation_threshold) * current_price
+
+            new_order = StopLimitOrder(ExchangeClient.BTC_USDT_SYMBOL, side, round(order_price_activation, 0), round(order_price_activation, 0), round(trade_quantity, 3))
             stop_loss = new_order.derive_stop_loss(target_down if side == OrderSide.BUY else target_up)
             take_profit = new_order.derive_take_profit(target_up if side == OrderSide.BUY else target_down)
             take_profit.quantity = position.position_amount
@@ -103,8 +108,12 @@ class BtcTrader(KlinesEventListener):
         self.trading_client.cancel_all_orders(ExchangeClient.BTC_USDT_SYMBOL)
 
         quantity = round(trade_quantity, 3) if round(trade_quantity, 3) >= MIN_QTY else MIN_QTY
-        new_order = MarketOrder(ExchangeClient.BTC_USDT_SYMBOL, side, quantity, current_price)
-        stop_loss = new_order.derive_stop_loss(target_down if side == OrderSide.BUY else target_up)
+
+        price_activation_threshold = 0.0005
+        order_price_activation = (1 + price_activation_threshold) * current_price if side == OrderSide.BUY else (1 - price_activation_threshold) * current_price
+
+        new_order = StopLimitOrder(ExchangeClient.BTC_USDT_SYMBOL, side, round(order_price_activation, 0), round(order_price_activation, 0), quantity)
+        stop_loss = new_order.derive_stop_loss(target_up if side == OrderSide.BUY else target_down)
         take_profit = new_order.derive_take_profit(target_up if side == OrderSide.BUY else target_down)
         _LOG.info(f'Placing a trade: {side}, price: {current_price}, quantity: {quantity},  stop_loss: {stop_loss.stop_price}, take_profit: {take_profit.price}')
 
@@ -135,7 +144,8 @@ class BtcTrader(KlinesEventListener):
         predictions, target_up, target_down = self.model.predict(input_for_predict)
 
         next_interval_predictions = predictions[0]
-        _LOG.debug(f'Predictions: {[f'{TargetLabel(index).name}:{a_prediction:.4f}' for index, a_prediction in enumerate(next_interval_predictions)]}')
+        predictions_description = [f'{TargetLabel(index).name}:{a_prediction:.4f}' for index, a_prediction in enumerate(next_interval_predictions)]
+        _LOG.debug(f'Predictions: {predictions_description}')
 
         current_highest_prediction = np.argmax(next_interval_predictions)
 
