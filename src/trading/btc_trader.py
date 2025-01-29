@@ -66,7 +66,6 @@ class BtcTrader(KlinesEventListener):
                 current_price = candle.close_price
 
                 self.__perform_trade(current_price, side, target_down, target_up)
-            _LOG.info(f'Next prediction at {(self.predictions_klines.elements[self.predictions_klines.size - 1].start_date + timedelta(hours=2)).strftime('%H:%M')}')
 
         except Exception as error:
             _LOG.exception(error)
