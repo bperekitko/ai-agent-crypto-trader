@@ -10,7 +10,7 @@ from data.exchange.candlestick import Candlestick
 from data.exchange.exchange_client import ExchangeClient
 from data.exchange.exchange_error import ExchangeError
 from data.exchange.klines_event_listener import KlinesEventListener
-from data.exchange.order import MarketOrder, OrderSide, Order, StopLimitOrder
+from data.exchange.order import OrderSide, Order, StopLimitOrder, MarketOrder
 from model.features.target import TargetLabel
 from model.lstm.lstm import Lstm
 from utils.deque import Dequeue
@@ -44,8 +44,9 @@ class BtcTrader(KlinesEventListener):
         _LOG.info(f'Leverage set, starting listening to klines')
         self.trading_client.add_klines_event_listener(self, ExchangeClient.BTC_USDT_SYMBOL)
         _LOG.info(f'Trader initialized, thank you')
-        _LOG.info(
-            f'Waiting for current candle to finish at {(self.predictions_klines.elements[17].end_date + timedelta(hours=1)).strftime('%H:%M')} , next prediction at {(self.predictions_klines.elements[17].start_date + timedelta(hours=2)).strftime('%H:%M')}')
+        current_candle_finish = (self.predictions_klines.elements[17].end_date + timedelta(hours=1)).strftime('%H:%M')
+        next_prediction_time = (self.predictions_klines.elements[17].start_date + timedelta(hours=2)).strftime('%H:%M')
+        _LOG.info(f'Waiting for current candle to finish at {current_candle_finish} , next prediction at {next_prediction_time}')
 
     def on_event(self, candle: Candlestick):
         # _LOG.debug(f'Candle event, price: {candle.close_price}, closed?: {candle.is_closed}')
@@ -94,9 +95,10 @@ class BtcTrader(KlinesEventListener):
             price_activation_threshold = 0.0005
             order_price_activation = (1 + price_activation_threshold) * current_price if side == OrderSide.BUY else (1 - price_activation_threshold) * current_price
 
-            new_order = StopLimitOrder(ExchangeClient.BTC_USDT_SYMBOL, side, round(order_price_activation, 0), round(order_price_activation, 0), round(trade_quantity, 3))
-            stop_loss = new_order.derive_stop_loss(target_down if side == OrderSide.BUY else target_up)
-            take_profit = new_order.derive_take_profit(target_up if side == OrderSide.BUY else target_down)
+            new_order = MarketOrder(ExchangeClient.BTC_USDT_SYMBOL, side, trade_quantity, current_price)
+            profit_threshold = target_up if side == OrderSide.BUY else target_down
+            stop_loss = new_order.derive_stop_loss(profit_threshold * 0.7)
+            take_profit = new_order.derive_take_profit(profit_threshold)
             take_profit.quantity = position.position_amount
 
             _LOG.info(f'Placing a trade: {side}, price: {current_price}, quantity: {trade_quantity},  stop_loss: {stop_loss.stop_price}, take_profit: {take_profit.price}')
@@ -112,9 +114,10 @@ class BtcTrader(KlinesEventListener):
         price_activation_threshold = 0.0005
         order_price_activation = (1 + price_activation_threshold) * current_price if side == OrderSide.BUY else (1 - price_activation_threshold) * current_price
 
-        new_order = StopLimitOrder(ExchangeClient.BTC_USDT_SYMBOL, side, round(order_price_activation, 0), round(order_price_activation, 0), quantity)
-        stop_loss = new_order.derive_stop_loss(target_up if side == OrderSide.BUY else target_down)
-        take_profit = new_order.derive_take_profit(target_up if side == OrderSide.BUY else target_down)
+        new_order = MarketOrder(ExchangeClient.BTC_USDT_SYMBOL, side, quantity, current_price)
+        profit_threshold = target_up if side == OrderSide.BUY else target_down
+        stop_loss = new_order.derive_stop_loss(profit_threshold * 0.7)
+        take_profit = new_order.derive_take_profit(profit_threshold)
         _LOG.info(f'Placing a trade: {side}, price: {current_price}, quantity: {quantity},  stop_loss: {stop_loss.stop_price}, take_profit: {take_profit.price}')
 
         self.__place_order(take_profit)
