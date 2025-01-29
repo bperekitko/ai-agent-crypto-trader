@@ -70,8 +70,8 @@ class Lstm(Model):
         for feature in self.__features:
             if hasattr(feature, 'is_fitted'):
                 self.__LOG.debug(f'{feature.name()} fitted: {feature.is_fitted}')
-        self.__LOG.debug(f'Target UP threshold: {self.__target.threshold_up(pd.DataFrame({'col': [1]})).values[0] * 100}%')
-        self.__LOG.debug(f'DOWN: {self.__target.threshold_down(pd.DataFrame({'col': [1]})).values[0] * 100}%')
+        self.__LOG.debug(f'Target UP threshold: {self.__target.threshold_up(pd.DataFrame({"col": [1]})).values[0] * 100}%')
+        self.__LOG.debug(f'DOWN: {self.__target.threshold_down(pd.DataFrame({"col": [1]})).values[0] * 100}%')
 
     def get_thresholds(self):
         target_up = self.__target.threshold_up(pd.DataFrame({'col': [1]})).values[0]
