@@ -8,6 +8,7 @@ class OrderType(Enum):
     STOP_MARKET = 2,
     TAKE_PROFIT_MARKET = 3,
     TAKE_PROFIT = 4,
+    STOP = 5
 
 
 class OrderSide(Enum):
@@ -19,10 +20,21 @@ class OrderSide(Enum):
 
 
 class Order(ABC):
-    def __init__(self, symbol, side: OrderSide, order_type: OrderType):
+    def __init__(self, symbol, side: OrderSide, order_type: OrderType, price: float, quantity: float):
         self.symbol = symbol
         self.side = side
         self.order_type = order_type
+        self.price = price
+        self.quantity = quantity
+
+    def derive_stop_loss(self, percent: float):
+        stop_loss_price = self.price * (1 - percent) if self.side == OrderSide.BUY else self.price * (1 + percent)
+        return StopLossMarketOrder(self.symbol, self.side.reversed(), round(stop_loss_price, 2), round(stop_loss_price, 2))
+
+    def derive_take_profit(self, percent: float):
+        take_profit_price = self.price * (1 + percent) if self.side == OrderSide.BUY else self.price * (1 - percent)
+        activation_price = self.price * (1 + percent * 0.7) if self.side == OrderSide.BUY else self.price * (1 - percent * 0.7)
+        return TakeProfitLimitOrder(self.symbol, self.side.reversed(), round(activation_price, 0), round(take_profit_price, 0), self.quantity)
 
     @abstractmethod
     def as_params(self):
@@ -31,18 +43,7 @@ class Order(ABC):
 
 class MarketOrder(Order):
     def __init__(self, symbol, side: OrderSide, quantity: float, price: float):
-        super().__init__(symbol, side, OrderType.MARKET)
-        self.quantity = quantity
-        self.price = price
-
-    def derive_stop_loss(self, percent: float):
-        stop_loss_price = self.price * (1 - percent) if self.side == OrderSide.BUY else self.price * (1 + percent)
-        return StopLossMarketOrder(self.symbol, self.side.reversed(), round(stop_loss_price, 2))
-
-    def derive_take_profit(self, percent: float):
-        take_profit_price = self.price * (1 + percent) if self.side == OrderSide.BUY else self.price * (1 - percent)
-        activation_price = self.price * (1 + percent * 0.7) if self.side == OrderSide.BUY else self.price * (1 - percent * 0.7)
-        return TakeProfitLimitOrder(self.symbol, self.side.reversed(), round(activation_price, 0), round(take_profit_price, 0), self.quantity)
+        super().__init__(symbol, side, OrderType.MARKET, price, quantity)
 
     def as_params(self):
         return {
@@ -53,9 +54,26 @@ class MarketOrder(Order):
         }
 
 
+class StopLimitOrder(Order):
+    def __init__(self, symbol: str, side: OrderSide, stop_price: float, price: float, quantity: float):
+        super().__init__(symbol, side, OrderType.STOP, price, quantity)
+        self.stop_price = stop_price
+
+    def as_params(self):
+        return {
+            'symbol': self.symbol,
+            'type': self.order_type.name,
+            'side': self.side.name,
+            'quantity': f'{self.quantity}',
+            'stopPrice': f'{self.stop_price}',
+            'price': f'{self.price}',
+            'workingType': 'MARK_PRICE'
+        }
+
+
 class StopLossMarketOrder(Order):
-    def __init__(self, symbol, side: OrderSide, stop_price):
-        super().__init__(symbol, side, OrderType.STOP_MARKET)
+    def __init__(self, symbol, side: OrderSide, stop_price, price):
+        super().__init__(symbol, side, OrderType.STOP_MARKET, price, 0)
         self.stop_price = stop_price
 
     def as_params(self):
@@ -71,10 +89,8 @@ class StopLossMarketOrder(Order):
 
 class TakeProfitLimitOrder(Order):
     def __init__(self, symbol, side: OrderSide, stop_price: float, price: float, quantity: float):
-        super().__init__(symbol, side, OrderType.TAKE_PROFIT)
+        super().__init__(symbol, side, OrderType.TAKE_PROFIT, price, quantity)
         self.stop_price = stop_price
-        self.price = price
-        self.quantity = quantity
 
     def as_params(self):
         return {
