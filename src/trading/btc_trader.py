@@ -10,7 +10,7 @@ from data.exchange.candlestick import Candlestick
 from data.exchange.exchange_client import ExchangeClient
 from data.exchange.exchange_error import ExchangeError
 from data.exchange.klines_event_listener import KlinesEventListener
-from data.exchange.order import OrderSide, Order, StopLimitOrder, MarketOrder
+from data.exchange.order import OrderSide, Order, StopLimitOrder, TrailingStopMarketOrder
 from model.features.target import TargetLabel
 from model.lstm.lstm import Lstm
 from utils.deque import Dequeue
@@ -58,70 +58,44 @@ class BtcTrader(KlinesEventListener):
         try:
             self.predictions_klines.push(candle)
             signal, probability, target_up, target_down = self.get_trading_signal()
-            if signal == TargetLabel.NEUTRAL or probability < TRADING_THRESHOLD_PROBABILITY:
+
+            if signal == TargetLabel.NEUTRAL:
                 _LOG.info(f'NO TRADING: signal {signal.name}, confidence: {probability * 100:.2f}%')
+            elif probability < TRADING_THRESHOLD_PROBABILITY:
+                _LOG.info(f'NO TRADING: low confidence: {probability * 100:.2f}% for signal {signal.name}')
             else:
                 _LOG.info(f'TRADING SIGNAL: {signal}, confidence: {probability * 100:.2f}%')
                 side = OrderSide.BUY if signal == TargetLabel.UP else OrderSide.SELL
                 current_price = candle.close_price
-
-                self.__perform_trade(current_price, side, target_down, target_up)
+                self.__perform_trade(current_price, side)
 
         except Exception as error:
             _LOG.exception(error)
 
-    def __perform_trade(self, current_price, side, target_down, target_up):
+    def __perform_trade(self, current_price, side):
         existing_positions = self.trading_client.get_current_positions(self.trading_client.BTC_USDT_SYMBOL)
         if len(existing_positions) > 1:
-            raise Exception("How come we have more than one position in BTCUSDT?")
-
-        if len(existing_positions) == 1:
-            position = existing_positions[0]
-            self.__handle_existing_position(position, current_price, side, target_down, target_up)
+            _LOG.info(f'There is still previous position open, aborting new trades')
         else:
             _LOG.info(f'There are no existing positions, creating new order')
             trade_quantity = self.starting_balance * MAX_BALANCE_USED_PER_POSITION * LEVERAGE / current_price
-            self.__new_trade(current_price, side, target_down, target_up, trade_quantity)
+            self.__new_trade(current_price, side, trade_quantity)
 
-    def __handle_existing_position(self, position, current_price, side, target_down, target_up):
-        if position.side == side:
-            _LOG.info(f'Current signal is the same as the existing position, keeping it')
-        else:
-            _LOG.info(f'Current signal is {side.name}, however {position.side.name} position exists, preparing reversed order')
-            self.trading_client.cancel_all_orders(self.trading_client.BTC_USDT_SYMBOL)
-            trade_quantity = position.position_amount * 2
-
-            price_activation_threshold = 0.0005
-            order_price_activation = (1 + price_activation_threshold) * current_price if side == OrderSide.BUY else (1 - price_activation_threshold) * current_price
-
-            new_order = MarketOrder(ExchangeClient.BTC_USDT_SYMBOL, side, trade_quantity, current_price)
-            profit_threshold = target_up if side == OrderSide.BUY else target_down
-            stop_loss = new_order.derive_stop_loss(profit_threshold * 0.7)
-            take_profit = new_order.derive_take_profit(profit_threshold)
-            take_profit.quantity = position.position_amount
-
-            _LOG.info(f'Placing a trade: {side}, price: {current_price}, quantity: {trade_quantity},  stop_loss: {stop_loss.stop_price}, take_profit: {take_profit.price}')
-            self.__place_order(take_profit)
-            self.__place_order(stop_loss)
-            self.__place_order(new_order)
-
-    def __new_trade(self, current_price, side, target_down, target_up, trade_quantity):
+    def __new_trade(self, current_price, side, trade_quantity):
         self.trading_client.cancel_all_orders(ExchangeClient.BTC_USDT_SYMBOL)
 
         quantity = round(trade_quantity, 3) if round(trade_quantity, 3) >= MIN_QTY else MIN_QTY
 
-        price_activation_threshold = 0.0005
+        price_activation_threshold = 0.001
         order_price_activation = (1 + price_activation_threshold) * current_price if side == OrderSide.BUY else (1 - price_activation_threshold) * current_price
 
-        new_order = MarketOrder(ExchangeClient.BTC_USDT_SYMBOL, side, quantity, current_price)
-        profit_threshold = target_up if side == OrderSide.BUY else target_down
-        stop_loss = new_order.derive_stop_loss(profit_threshold * 0.7)
-        take_profit = new_order.derive_take_profit(profit_threshold)
-        _LOG.info(f'Placing a trade: {side}, price: {current_price}, quantity: {quantity},  stop_loss: {stop_loss.stop_price}, take_profit: {take_profit.price}')
+        order = StopLimitOrder(ExchangeClient.BTC_USDT_SYMBOL, side, order_price_activation, order_price_activation, quantity)
+        stop_loss = TrailingStopMarketOrder(ExchangeClient.BTC_USDT_SYMBOL, side.reversed(), order_price_activation, quantity, order_price_activation, 0.1)
 
-        self.__place_order(take_profit)
+        _LOG.info(f'Placing a trade: {side}, quantity: {quantity}, activating at {order_price_activation}')
+
         self.__place_order(stop_loss)
-        self.__place_order(new_order)
+        self.__place_order(order)
 
     def __place_order(self, order: Order):
         try:

@@ -8,7 +8,8 @@ class OrderType(Enum):
     STOP_MARKET = 2,
     TAKE_PROFIT_MARKET = 3,
     TAKE_PROFIT = 4,
-    STOP = 5
+    STOP = 5,
+    TRAILING_STOP_MARKET = 6
 
 
 class OrderSide(Enum):
@@ -67,6 +68,26 @@ class StopLimitOrder(Order):
             'quantity': f'{self.quantity}',
             'stopPrice': f'{self.stop_price}',
             'price': f'{self.price}',
+            'workingType': 'MARK_PRICE'
+        }
+
+
+class TrailingStopMarketOrder(Order):
+
+    def __init__(self, symbol: str, side: OrderSide, price: float, qty: float, activation_price: float, tolerance: float):
+        super().__init__(symbol, side, OrderType.TRAILING_STOP_MARKET, price, qty)
+        self.activation_price = activation_price
+        self.tolerance = tolerance
+
+    def as_params(self):
+        return {
+            'symbol': self.symbol,
+            'type': self.order_type.name,
+            'side': self.side.name,
+            'reduceOnly': True,
+            'quantity': f'{self.quantity}',
+            'callbackRate': f'{self.tolerance}',
+            'activationPrice': f'{self.activation_price}',
             'workingType': 'MARK_PRICE'
         }
 

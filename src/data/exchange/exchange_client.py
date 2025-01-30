@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from datetime import datetime
 from typing import List
 
 from data.exchange.candlestick import Candlestick
@@ -28,7 +29,7 @@ class ExchangeClient(ABC):
         pass
 
     @abstractmethod
-    def get_trades(self) -> List[Trade]:
+    def get_trades(self, symbol: str, start_time: datetime, end_time: datetime) -> List[Trade]:
         pass
 
     @abstractmethod

@@ -49,8 +49,26 @@ class BinanceClient(ExchangeClient):
     def cancel_all_orders(self, symbol: str):
         return self.client.futures_cancel_all_open_orders(symbol=symbol)
 
-    def get_trades(self) -> List[Trade]:
-        return []
+    def get_trades(self, symbol, start_time, end_time) -> List[Trade]:
+        result = self.client.futures_account_trades(symbol=symbol, start_time=start_time.timestamp(), end_time=end_time.timestamp())
+        trades = []
+        for trade in result:
+            buyer = trade['buyer']
+            commission = trade['commission']
+            commission_asset = trade['commissionAsset']
+            trade_id = trade['id']
+            maker = trade['maker']
+            order_id = trade['orderId']
+            price = trade['price']
+            qty = trade['qty']
+            quote_qty = trade['quoteQty']
+            realized_pnl = trade['realizedPnl']
+            side = trade['side']
+            position_side = trade['positionSide']
+            symbol = trade['symbol']
+            time = trade['time']
+            trades.append(Trade(buyer, commission, commission_asset, trade_id, maker, order_id, price, qty, quote_qty, realized_pnl, side, position_side, symbol, time))
+        return trades
 
     @_with_exceptions_handled
     def get_current_positions(self, symbol):
