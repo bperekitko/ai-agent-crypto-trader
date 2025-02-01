@@ -37,6 +37,10 @@ class ExchangeClient(ABC):
         pass
 
     @abstractmethod
+    def get_historical_klines(self, symbol: str, start: datetime, end: datetime) -> List[Candlestick]:
+        pass
+
+    @abstractmethod
     def get_current_positions(self, symbol: str) -> List[Position]:
         pass
 

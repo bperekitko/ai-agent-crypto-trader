@@ -10,7 +10,7 @@ from data.exchange.candlestick import Candlestick
 from data.exchange.exchange_client import ExchangeClient
 from data.exchange.exchange_error import ExchangeError
 from data.exchange.klines_event_listener import KlinesEventListener
-from data.exchange.order import OrderSide, Order, StopLimitOrder, TrailingStopMarketOrder
+from data.exchange.order import OrderSide, Order, TrailingStopMarketOrder, StopMarketOrder
 from model.features.target import TargetLabel
 from model.lstm.lstm import Lstm
 from utils.deque import Dequeue
@@ -86,11 +86,11 @@ class BtcTrader(KlinesEventListener):
 
         quantity = round(trade_quantity, 3) if round(trade_quantity, 3) >= MIN_QTY else MIN_QTY
 
-        price_activation_threshold = 0.001
+        price_activation_threshold = 0.007
         order_price_activation = (1 + price_activation_threshold) * current_price if side == OrderSide.BUY else (1 - price_activation_threshold) * current_price
         rounded_activation_price = round(order_price_activation, 0)
 
-        order = StopLimitOrder(ExchangeClient.BTC_USDT_SYMBOL, side, rounded_activation_price, rounded_activation_price, quantity)
+        order = StopMarketOrder(ExchangeClient.BTC_USDT_SYMBOL, side, rounded_activation_price, rounded_activation_price, quantity)
         stop_loss = TrailingStopMarketOrder(ExchangeClient.BTC_USDT_SYMBOL, side.reversed(), rounded_activation_price, quantity, rounded_activation_price, 0.1)
 
         _LOG.info(f'Placing a trade: {side}, quantity: {quantity}, activating at {rounded_activation_price}')

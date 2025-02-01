@@ -38,7 +38,7 @@ class BinanceClient(ExchangeClient):
 
     @_with_exceptions_handled
     def place_order(self, order: Order):
-        return  self.client.futures_create_order(**order.as_params())
+        return self.client.futures_create_order(**order.as_params())
 
     @_with_exceptions_handled
     def place_batch_orders(self, orders: List[Order]):
@@ -85,6 +85,14 @@ class BinanceClient(ExchangeClient):
     @_with_exceptions_handled
     def get_last_klines(self, limit, symbol, interval) -> List[Candlestick]:
         klines = self.client.futures_continous_klines(pair=symbol, interval=interval, limit=limit, contractType='PERPETUAL')
+        candlesticks = map(
+            lambda k: Candlestick(symbol, float(k[1]), float(k[2]), float(k[3]), float(k[4]), True, datetime.fromtimestamp(k[0] / 1000), datetime.fromtimestamp(k[6] / 1000),
+                                  float(k[5])), klines)
+        return list(candlesticks)
+
+    @_with_exceptions_handled
+    def get_historical_klines(self, symbol: str, start: datetime, end: datetime) -> List[Candlestick]:
+        klines = self.client.futures_historical_klines(symbol=symbol, interval=self.client.KLINE_INTERVAL_1HOUR, start_str=int(start.timestamp() * 1000), end_str=int(end.timestamp() * 1000), limit=None)
         candlesticks = map(
             lambda k: Candlestick(symbol, float(k[1]), float(k[2]), float(k[3]), float(k[4]), True, datetime.fromtimestamp(k[0] / 1000), datetime.fromtimestamp(k[6] / 1000),
                                   float(k[5])), klines)

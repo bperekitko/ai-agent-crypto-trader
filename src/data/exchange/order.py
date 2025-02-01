@@ -92,7 +92,22 @@ class TrailingStopMarketOrder(Order):
         }
 
 
-class StopLossMarketOrder(Order):
+class StopMarketOrder(Order):
+    def __init__(self, symbol, side: OrderSide, stop_price, price, quantity: float):
+        super().__init__(symbol, side, OrderType.STOP_MARKET, price, quantity)
+        self.stop_price = stop_price
+
+    def as_params(self):
+        return {
+            'symbol': self.symbol,
+            'type': self.order_type.name,
+            'side': self.side.name,
+            'stopPrice': f'{self.stop_price}',
+            'quantity': f'{self.quantity}',
+            'workingType': 'MARK_PRICE'
+        }
+
+class StopLossMarketOrder(StopMarketOrder):
     def __init__(self, symbol, side: OrderSide, stop_price, price):
         super().__init__(symbol, side, OrderType.STOP_MARKET, price, 0)
         self.stop_price = stop_price

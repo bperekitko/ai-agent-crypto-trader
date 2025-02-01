@@ -17,7 +17,7 @@ from keras.src.utils import to_categorical
 from sklearn.utils.class_weight import compute_class_weight
 
 from data.raw_data_columns import DataColumns
-from model.evaluation.evaluate import evaluate_for_highs_and_lows
+from model.evaluation.evaluate import evaluate_for_highs_and_lows, evaluate
 from model.features.close_price_prct_diff import CloseDiff
 from model.features.close_to_low import CloseToLow
 from model.features.feature import Feature
@@ -111,12 +111,14 @@ class Lstm(Model):
 
     def test(self, df: pd.DataFrame):
         self.__LOG.info(f'Testing model {self.__NAME}')
+        self.params['date_range'] = f'{df.head(1)[DataColumns.DATE_CLOSE].dt.strftime('%Y-%m-%d %H-%M').values[0]} - {df.tail(1)[DataColumns.DATE_CLOSE].dt.strftime('%Y-%m-%d %H-%M').values[0]}'
         probabilities, _, _ = self.predict(df)
         train_data = self.prepare_data(df)
         evaluate_for_highs_and_lows(probabilities, self, train_data, self.__target.threshold_up, self.__target.threshold_down)
 
-        # _, test_y = self.__to_sequences(train_data)
-        # evaluate(probabilities, y_test, self.params, self.__NAME)
+        _, test_y = self.__to_sequences(train_data)
+        self.params['adjusted_target'] = False
+        evaluate(probabilities, np.argmax(test_y, axis=1), self)
 
     def prepare_data(self, df):
         result_data = df[[DataColumns.DATE_CLOSE, DataColumns.HIGH, DataColumns.LOW, DataColumns.CLOSE]].copy()
