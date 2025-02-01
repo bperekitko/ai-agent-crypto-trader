@@ -1,7 +1,5 @@
 import os
 
-from data.raw_data import RAW_DATA_FILE_PATH
-
 os.environ["ENVIRONMENT"] = "PROD"
 
 from config import ENVIRONMENT
