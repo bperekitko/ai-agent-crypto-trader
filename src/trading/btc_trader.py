@@ -86,7 +86,7 @@ class BtcTrader(KlinesEventListener):
 
         quantity = round(trade_quantity, 3) if round(trade_quantity, 3) >= MIN_QTY else MIN_QTY
 
-        price_activation_threshold = 0.007
+        price_activation_threshold = 0.0007
         order_price_activation = (1 + price_activation_threshold) * current_price if side == OrderSide.BUY else (1 - price_activation_threshold) * current_price
         rounded_activation_price = round(order_price_activation, 0)
 
