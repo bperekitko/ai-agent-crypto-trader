@@ -86,12 +86,12 @@ class BtcTrader(KlinesEventListener):
 
         quantity = round(trade_quantity, 3) if round(trade_quantity, 3) >= MIN_QTY else MIN_QTY
 
-        price_activation_threshold = 0.0007
+        price_activation_threshold = 0.0005
         order_price_activation = (1 + price_activation_threshold) * current_price if side == OrderSide.BUY else (1 - price_activation_threshold) * current_price
         rounded_activation_price = round(order_price_activation, 0)
 
         order = StopMarketOrder(ExchangeClient.BTC_USDT_SYMBOL, side, rounded_activation_price, rounded_activation_price, quantity)
-        stop_loss = TrailingStopMarketOrder(ExchangeClient.BTC_USDT_SYMBOL, side.reversed(), rounded_activation_price, quantity, rounded_activation_price, 0.1)
+        stop_loss = TrailingStopMarketOrder(ExchangeClient.BTC_USDT_SYMBOL, side.reversed(), rounded_activation_price, quantity, rounded_activation_price, 0.2)
 
         _LOG.info(f'Placing a trade: {side}, quantity: {quantity}, activating at {rounded_activation_price}')
 
