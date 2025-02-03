@@ -95,7 +95,7 @@ class BtcTrader(KlinesEventListener):
         rounded_take_profit_price = round(take_profit_price, 0)
 
         order = StopMarketOrder(ExchangeClient.BTC_USDT_SYMBOL, side, rounded_activation_price, rounded_activation_price, quantity)
-        take_profit = StopLimitOrder(ExchangeClient.BTC_USDT_SYMBOL, side.reversed(), round(take_profit_price * 0.7, 0), quantity, rounded_take_profit_price)
+        take_profit = StopLimitOrder(ExchangeClient.BTC_USDT_SYMBOL, side.reversed(), round(take_profit_price * 0.7, 0), rounded_take_profit_price, quantity)
         stop_loss = StopLossMarketOrder(ExchangeClient.BTC_USDT_SYMBOL, side.reversed(), rounded_stop_loss_price, rounded_stop_loss_price)
         _LOG.info(
             f'Placing a trade: {side}, quantity: {quantity}, activating at {rounded_activation_price}, stop_loss {rounded_stop_loss_price}, take profit {rounded_take_profit_price}')
