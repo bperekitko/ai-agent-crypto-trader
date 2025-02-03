@@ -15,7 +15,7 @@ from model.model import Model
 from utils.add_to_excel import append_df_to_excel
 from utils.log import get_logger
 
-__CONFIDENCE_LEVELS = [0.0, 0.4, 0.45, 0.5, 0.55, 0.6, 0.7, 0.8]
+__CONFIDENCE_LEVELS = [0.0, 0.4, 0.45, 0.5, 0.55, 0.6]
 
 
 def evaluate_for_highs_and_lows(probabilities, model: Model, input_data: pd.DataFrame, threshold_up_provider, threshold_down_provider):
@@ -74,7 +74,7 @@ def evaluate(probabilities, y_test, model: Model):
             __evaluate_with_confidence(model, confident_probabilities, confident_y_true, confidence, original_count)
         else:
             logger.warn(f'No samples with confidence level: {confidence}')
-    logger.info(f'Saved evaluation results to file: {model.name()}.xlsx')
+    logger.info(f'Saved evaluation results to file: {model.name()}_{model.version()}.xlsx')
 
 
 def __evaluate_with_confidence(model: Model, probabilities, y_test, confidence, original_pred_count):
@@ -113,7 +113,7 @@ def __evaluate_with_confidence(model: Model, probabilities, y_test, confidence, 
         'Brier Score (DOWN)': brier_scores[0],  # {'DOWN': 0, 'UP': 1, 'NEUTRAL': 2}
         'Brier Score (UP)': brier_scores[1],
         'Brier Score (NEUTRAL)': brier_scores[2],
-        'ModelParams': json.dumps(model.params)
+        **model.params
     }
     results_df = pd.DataFrame([results])
-    append_df_to_excel(results_df, current_dir_path(f'{model.name()}.xlsx'))
+    append_df_to_excel(results_df, current_dir_path(f'{model.name()}_{model.version()}.xlsx'))

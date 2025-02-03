@@ -4,13 +4,12 @@ from datetime import timedelta
 import numpy as np
 import pandas as pd
 
-from config import ENVIRONMENT
 from data.convert_to_df import convert_to_data_frame
 from data.exchange.candlestick import Candlestick
 from data.exchange.exchange_client import ExchangeClient
 from data.exchange.exchange_error import ExchangeError
 from data.exchange.klines_event_listener import KlinesEventListener
-from data.exchange.order import OrderSide, Order, TrailingStopMarketOrder, StopMarketOrder
+from data.exchange.order import OrderSide, Order, TrailingStopMarketOrder, StopMarketOrder, StopLossMarketOrder
 from model.features.target import TargetLabel
 from model.lstm.lstm import Lstm
 from utils.deque import Dequeue
@@ -35,7 +34,6 @@ class BtcTrader(KlinesEventListener):
             self.predictions_klines.push(kline)
 
     def start(self):
-        _LOG.info(f'Starting on {ENVIRONMENT} env')
         _LOG.info(f'Starting current balance: {self.starting_balance} $BNFCR')
         _LOG.info(f'Will be using {self.starting_balance * MAX_BALANCE_USED_PER_POSITION} $BNFCR per position')
 
@@ -86,16 +84,21 @@ class BtcTrader(KlinesEventListener):
 
         quantity = round(trade_quantity, 3) if round(trade_quantity, 3) >= MIN_QTY else MIN_QTY
 
-        price_activation_threshold = 0.0005
+        price_activation_threshold = 0.0007
         order_price_activation = (1 + price_activation_threshold) * current_price if side == OrderSide.BUY else (1 - price_activation_threshold) * current_price
+        stop_loss_price = 0.9985 * order_price_activation if side == OrderSide.BUY else 1.0015 * order_price_activation
+        take_profit_price = 1.004 * order_price_activation if side == OrderSide.BUY else 0.996 * order_price_activation
         rounded_activation_price = round(order_price_activation, 0)
+        rounded_stop_loss_price = round(stop_loss_price, 0)
+        rounded_take_profit_price = round(take_profit_price, 0)
 
         order = StopMarketOrder(ExchangeClient.BTC_USDT_SYMBOL, side, rounded_activation_price, rounded_activation_price, quantity)
-        stop_loss = TrailingStopMarketOrder(ExchangeClient.BTC_USDT_SYMBOL, side.reversed(), rounded_activation_price, quantity, rounded_activation_price, 0.2)
-
-        _LOG.info(f'Placing a trade: {side}, quantity: {quantity}, activating at {rounded_activation_price}')
+        take_profit = TrailingStopMarketOrder(ExchangeClient.BTC_USDT_SYMBOL, side.reversed(), rounded_take_profit_price, quantity, rounded_take_profit_price, 0.1)
+        stop_loss = StopLossMarketOrder(ExchangeClient.BTC_USDT_SYMBOL, side.reversed(), rounded_stop_loss_price, rounded_stop_loss_price)
+        _LOG.info(f'Placing a trade: {side}, quantity: {quantity}, activating at {rounded_activation_price}, stop_loss {rounded_stop_loss_price}, take profit {rounded_take_profit_price}')
 
         self.__place_order(stop_loss)
+        self.__place_order(take_profit)
         self.__place_order(order)
 
     def __place_order(self, order: Order):

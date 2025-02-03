@@ -1,7 +1,11 @@
 import os
 import pickle
 from typing import List
+
 import pandas as pd
+
+from model.features.close_to_ema import CloseToEma
+from model.features.ema_to_ema_ratio import EmaToEmaRatio
 
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 pd.set_option('display.max_columns', None)  # Displaying all columns when printing
@@ -17,7 +21,7 @@ from keras.src.utils import to_categorical
 from sklearn.utils.class_weight import compute_class_weight
 
 from data.raw_data_columns import DataColumns
-from model.evaluation.evaluate import evaluate_for_highs_and_lows, evaluate
+from model.evaluation.evaluate import evaluate
 from model.features.close_price_prct_diff import CloseDiff
 from model.features.close_to_low import CloseToLow
 from model.features.feature import Feature
@@ -30,22 +34,22 @@ from model.model import Model
 from model.saved import SAVED_MODELS_PATH
 from utils.log import get_logger
 
+_LOG = get_logger('lstm')
 
 
 class Lstm(Model):
     __NAME = 'lstm'
-    __LOG = get_logger(__NAME)
 
     def __init__(self):
         super().__init__()
-        self.__version = 0.01
-        self.__features: List[Feature] = [CloseDiff(), HighToClose(), CloseToLow(), Volume(), RSI(8), HourOfDaySine(), HourOfDayCosine()]
-        neg_perc = 25
+        self.__version = 0.02
+        self.__features: List[Feature] = [CloseDiff(), HighToClose(), CloseToLow(), Volume(), RSI(8), HourOfDaySine(), HourOfDayCosine(), CloseToEma(15)]
+        neg_perc = 30
         pos_perc = 100 - neg_perc
         self.__target = Target(PercentileLabelingPolicy(neg_perc, pos_perc))
         self.params = {
             'loss_function_name': 'categorical_crossentropy',
-            'sequence_window': 12,
+            'sequence_window': 42,
             'layers': ['LSTM-100', 'LSTM-100', 'Dense-64', 'Dense-3'],
             'learning_rate': 0.001,
             'epochs': 100,
@@ -65,13 +69,13 @@ class Lstm(Model):
         return self.__NAME
 
     def describe(self) -> None:
-        self.__LOG.info(f'{self.__NAME}')
-        self.__LOG.info(self.params)
+        _LOG.info(f'{self.__NAME}')
+        _LOG.info(self.params)
         for feature in self.__features:
             if hasattr(feature, 'is_fitted'):
-                self.__LOG.debug(f'{feature.name()} fitted: {feature.is_fitted}')
-        self.__LOG.debug(f'Target UP threshold: {self.__target.threshold_up(pd.DataFrame({"col": [1]})).values[0] * 100}%')
-        self.__LOG.debug(f'DOWN: {self.__target.threshold_down(pd.DataFrame({"col": [1]})).values[0] * 100}%')
+                _LOG.debug(f'{feature.name()} fitted: {feature.is_fitted}')
+        _LOG.debug(f'Target UP threshold: {self.__target.threshold_up(pd.DataFrame({"col": [1]})).values[0] * 100}%')
+        _LOG.debug(f'DOWN: {self.__target.threshold_down(pd.DataFrame({"col": [1]})).values[0] * 100}%')
 
     def get_thresholds(self):
         target_up = self.__target.threshold_up(pd.DataFrame({'col': [1]})).values[0]
@@ -80,7 +84,7 @@ class Lstm(Model):
 
     def predict(self, df: pd.DataFrame):
         train_data = self.prepare_data(df)
-        x_train, _ = self.__to_sequences(train_data)
+        x_train, _ = self.to_sequences(train_data)
 
         target_up = self.__target.threshold_up(pd.DataFrame({'col': [1]})).values[0]
         target_down = self.__target.threshold_down(pd.DataFrame({'col': [1]})).values[0]
@@ -88,8 +92,12 @@ class Lstm(Model):
         return self.__model.predict(x_train), target_up, target_down
 
     def train(self, df: pd.DataFrame):
+        _LOG.info(f'Training model, train data between: {df.head(1)[DataColumns.DATE_OPEN].values[0]} - {df.tail(1)[DataColumns.DATE_OPEN].values[0]}')
+        self.params[
+            'trained_on'] = f'{df.head(1)[DataColumns.DATE_OPEN].dt.strftime("%Y-%m-%d %H-%M").values[0]} - {df.tail(1)[DataColumns.DATE_OPEN].dt.strftime("%Y-%m-%d %H-%M").values[0]}'
+
         train_data = self.prepare_data(df)
-        x_train, y_train = self.__to_sequences(train_data)
+        x_train, y_train = self.to_sequences(train_data)
 
         y_train_labels = np.argmax(y_train, axis=1)
         class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(y_train_labels), y=y_train_labels)
@@ -110,15 +118,18 @@ class Lstm(Model):
                          callbacks=[early_stopping])
 
     def test(self, df: pd.DataFrame):
-        self.__LOG.info(f'Testing model {self.__NAME}')
-        self.params['date_range'] = f'{df.head(1)[DataColumns.DATE_CLOSE].dt.strftime("%Y-%m-%d %H-%M").values[0]} - {df.tail(1)[DataColumns.DATE_CLOSE].dt.strftime("%Y-%m-%d %H-%M").values[0]}'
+        _LOG.info(f'Testing model {self.__NAME}')
+        self.params[
+            'tested_on'] = f'{df.head(1)[DataColumns.DATE_CLOSE].dt.strftime("%Y-%m-%d %H-%M").values[0]} - {df.tail(1)[DataColumns.DATE_CLOSE].dt.strftime("%Y-%m-%d %H-%M").values[0]}'
         probabilities, _, _ = self.predict(df)
         train_data = self.prepare_data(df)
-        evaluate_for_highs_and_lows(probabilities, self, train_data, self.__target.threshold_up, self.__target.threshold_down)
+        # evaluate_for_highs_and_lows(probabilities, self, train_data, self.__target.threshold_up, self.__target.threshold_down)
 
-        _, test_y = self.__to_sequences(train_data)
+        _, test_y = self.to_sequences(train_data)
         self.params['adjusted_target'] = False
-        evaluate(probabilities, np.argmax(test_y, axis=1), self)
+        y_true = np.argmax(test_y, axis=1)
+        # evaluate(probabilities, y_true, self)
+        return probabilities, y_true
 
     def prepare_data(self, df):
         result_data = df[[DataColumns.DATE_CLOSE, DataColumns.HIGH, DataColumns.LOW, DataColumns.CLOSE]].copy()
@@ -128,7 +139,7 @@ class Lstm(Model):
         result_data[self.__target.name()] = self.__target.calculate(df)
         return result_data.dropna()
 
-    def __to_sequences(self, train_data):
+    def to_sequences(self, train_data):
         x = train_data.drop([DataColumns.DATE_CLOSE, DataColumns.TARGET, DataColumns.HIGH, DataColumns.LOW, DataColumns.CLOSE], axis=1).values
         y = train_data[DataColumns.TARGET]
         one_hot_encoded_y = to_categorical(y)

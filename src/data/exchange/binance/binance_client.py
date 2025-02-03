@@ -4,7 +4,7 @@ from typing import List
 from binance import Client, ThreadedWebsocketManager
 from binance.exceptions import BinanceAPIException
 
-from config import IS_TEST, BINANCE_FUTURES_API_KEY, BINANCE_FUTURES_SECRET_KEY, ENVIRONMENT
+from config import Environment, Config
 from data.exchange.candlestick import Candlestick
 from data.exchange.exchange_client import ExchangeClient
 from data.exchange.exchange_error import ExchangeError
@@ -17,10 +17,11 @@ from utils.log import get_logger
 
 class BinanceClient(ExchangeClient):
 
-    def __init__(self):
+    def __init__(self, config: Config):
         self.__LOG = get_logger("Binance Client")
-        self.client = Client(testnet=IS_TEST, api_key=BINANCE_FUTURES_API_KEY, api_secret=BINANCE_FUTURES_SECRET_KEY)
-        self.twm = ThreadedWebsocketManager(testnet=IS_TEST, api_key=BINANCE_FUTURES_API_KEY, api_secret=BINANCE_FUTURES_SECRET_KEY)
+        is_test = config.env == Environment.TEST
+        self.client = Client(testnet=is_test, api_key=config.binance_futures_api_key, api_secret=config.binance_futures_secret_key)
+        self.twm = ThreadedWebsocketManager(testnet=is_test, api_key=config.binance_futures_api_key, api_secret=config.binance_futures_secret_key)
         self.klines_events_listeners: {str: List[KlinesEventListener]} = {}
 
     @staticmethod
@@ -30,6 +31,7 @@ class BinanceClient(ExchangeClient):
                 return func(*args, **kwargs)
             except BinanceAPIException as exc:
                 raise ExchangeError(exc.message) from exc
+
         return inner_func
 
     def add_klines_event_listener(self, listener: KlinesEventListener, symbol: str):
@@ -92,7 +94,8 @@ class BinanceClient(ExchangeClient):
 
     @_with_exceptions_handled
     def get_historical_klines(self, symbol: str, start: datetime, end: datetime) -> List[Candlestick]:
-        klines = self.client.futures_historical_klines(symbol=symbol, interval=self.client.KLINE_INTERVAL_1HOUR, start_str=int(start.timestamp() * 1000), end_str=int(end.timestamp() * 1000), limit=None)
+        klines = self.client.futures_historical_klines(symbol=symbol, interval=self.client.KLINE_INTERVAL_1HOUR, start_str=int(start.timestamp() * 1000),
+                                                       end_str=int(end.timestamp() * 1000), limit=None)
         candlesticks = map(
             lambda k: Candlestick(symbol, float(k[1]), float(k[2]), float(k[3]), float(k[4]), True, datetime.fromtimestamp(k[0] / 1000), datetime.fromtimestamp(k[6] / 1000),
                                   float(k[5])), klines)

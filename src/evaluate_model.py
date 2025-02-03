@@ -1,8 +1,6 @@
 import os
 
-os.environ["ENVIRONMENT"] = "PROD"
-
-from config import ENVIRONMENT
+from config import Config, Environment
 from data.raw_data_columns import DataColumns
 from model.lstm.lstm import Lstm
 
@@ -13,8 +11,9 @@ from data.exchange.exchange_client import ExchangeClient
 
 
 def evaluate_model():
-    print(f'Starting on {ENVIRONMENT} env')
-    client = BinanceClient()
+    env = Environment.PROD
+    print(f'Starting on {env.name} env')
+    client = BinanceClient(Config(env))
     start_time = datetime(2024, 12, 31)
     end_time = datetime(2025, 1, 31)
     symbol = ExchangeClient.BTC_USDT_SYMBOL

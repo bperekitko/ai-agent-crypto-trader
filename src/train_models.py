@@ -1,53 +1,55 @@
 import os
 
 import pandas as pd
-import logging
 
-from model.features.target import TargetLabel, Target
-from model.softmax_regression.softmax import SoftmaxRegression
+from data.exchange.binance.binance_client import BinanceClient
+from model.evaluation.time_series_cross_validation import time_series_cross_validate
+from model.features.ema_to_ema_ratio import EmaToEmaRatio
 
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 pd.set_option('display.max_columns', None)  # Displaying all columns when printing
 pd.set_option('display.expand_frame_repr', False)  # Disable line wrap when printing
 
-from model.lstm.lstm import Lstm
+from data import RAW_DATA_FILE_PATH
+from data.raw_data_columns import DataColumns
+
+from config import Config, Environment
+from data.convert_to_df import convert_to_data_frame
+from data.exchange.exchange_client import ExchangeClient
 
 from datetime import datetime
 
-from data.raw_data import get_data, get_last_x_intervals
-
 
 def train():
-    train_data = get_data(datetime(2024, 1, 1), datetime(2024, 11, 1))
-    test_data = get_data(datetime(2024, 11, 1), datetime(2025, 1, 1))
-    h = get_last_x_intervals(20)
-    # model = Lstm()
-    # model.train(train_data)
-    # model.save()
+    env = Environment.PROD
+    print(f'Training using on {env.name} env')
 
-    model = Lstm.load("0.01")
-    # model.describe()
-    # model.load("0.01")
-    # h['percent_diff']=h['close'].pct_change() * 100
-    # print(model.prepare_data(h))
-    #
-    predictions, up, down = model.predict(h.copy())
-    print(f'{model.name()}: ')
-    for i in range(len(predictions[0])):
-        print(f'{TargetLabel(i).name}: {predictions[0][i] * 100}%')
+    train_start = datetime(2024, 1, 1)
+    train_end = datetime(2025, 2, 3)
 
-    print(f'THRESHOLD UP: {up}')
-    print(f'THRESHOLD DOWN: {down}')
-    print(h)
-    # model2 = SoftmaxRegression()
-    # model2.load("0.01")
-    # print(f'{model2.name()}: ')
-    # print( model2.predict(h.copy()))
+    client = BinanceClient(Config(env))
+    train_data = get_train_data(client, train_start, train_end)
+    time_series_cross_validate(train_data, None)
+    for ema in [(20, 8), (15,5), (20, 5), (15, 8)]:
+        long, short = ema
+        feat = EmaToEmaRatio(long, short)
+        time_series_cross_validate(train_data, feat)
 
 
-    # model.train(train_data)
-    # model.test(test_data)
-    # model.save()
+def get_train_data(client, train_start, train_end, ) -> pd.DataFrame:
+    print(f'Getting train data between {train_start} - {train_end}')
+    try:
+        df = pd.read_parquet(RAW_DATA_FILE_PATH)
+        filtered_by_dates = (df[DataColumns.DATE_CLOSE] >= train_start) & (df[DataColumns.DATE_CLOSE] <= train_end)
+        print(f'Got data from existing file')
+        return df.loc[filtered_by_dates]
+    except FileNotFoundError:
+        print(f'Data file not present, downloading')
+        train_klines = client.get_historical_klines(ExchangeClient.BTC_USDT_SYMBOL, train_start, train_end)
+        train_data = convert_to_data_frame(train_klines)
+        train_data.to_parquet(RAW_DATA_FILE_PATH)
+    return train_data
+
 
 if __name__ == "__main__":
     train()

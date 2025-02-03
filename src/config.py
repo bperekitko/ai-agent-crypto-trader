@@ -1,15 +1,20 @@
 import os
+from enum import Enum
 
 from dotenv import load_dotenv
+
+
+class Environment(Enum):
+    TEST = 0
+    PROD = 1
+
 
 load_dotenv()
 LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../logs')
 
-ENVIRONMENT = 'TEST' if os.getenv("ENVIRONMENT") is None else os.getenv('ENVIRONMENT')
-IS_TEST = ENVIRONMENT != 'PROD'
 
-BINANCE_FUTURES_API_KEY = os.getenv(f'{ENVIRONMENT}_BINANCE_FUTURES_API_KEY')
-BINANCE_FUTURES_SECRET_KEY = os.getenv(f'{ENVIRONMENT}_BINANCE_FUTURES_SECRET_KEY')
-
-BINANCE_FUTURES_API_URL = 'https://testnet.binancefuture.com' if IS_TEST else 'https://fapi.binance.com'
-BINANCE_FUTURES_WEBSOCKET_API_URL = 'wss://stream.binancefuture.com' if IS_TEST else 'wss://fstream.binance.com'
+class Config:
+    def __init__(self, env: Environment):
+        self.env = env
+        self.binance_futures_api_key = os.getenv(f'{self.env.name}_BINANCE_FUTURES_API_KEY')
+        self.binance_futures_secret_key = os.getenv(f'{self.env.name}_BINANCE_FUTURES_SECRET_KEY')

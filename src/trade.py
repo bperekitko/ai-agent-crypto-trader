@@ -1,9 +1,16 @@
+import os
+
+from config import Environment, Config
 from data.exchange.binance.binance_client import BinanceClient
 from trading.btc_trader import BtcTrader
+from utils.log import get_logger
 
-
+_LOG = get_logger("MainApp")
 def start_trading():
-    client = BinanceClient()
+    config = Config(Environment.PROD if os.getenv("ENVIRONMENT") == 'PROD' else Environment.TEST)
+    _LOG.info(f'Starting on {config.env.name} env')
+
+    client = BinanceClient(config)
     BtcTrader(client).start()
     client.start()
 
