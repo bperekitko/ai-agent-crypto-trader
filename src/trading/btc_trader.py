@@ -103,7 +103,7 @@ class BtcTrader(KlinesEventListener):
 
     def __place_order(self, order: Order):
         try:
-            self.trading_client.place_order(order)
+            _LOG.info(self.trading_client.place_order(order))
         except ExchangeError as error:
             self.trading_client.cancel_all_orders(ExchangeClient.BTC_USDT_SYMBOL)
             _LOG.error(f'Cannot place {order.order_type.name} order: {error.message}')
