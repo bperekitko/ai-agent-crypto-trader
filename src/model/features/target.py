@@ -2,11 +2,19 @@ from abc import ABC, abstractmethod
 from enum import Enum
 
 import numpy as np
+import pandas as pd
 from pandas import DataFrame
 
 from data.raw_data_columns import DataColumns
 from model.features.feature import Feature
 from utils.log import get_logger
+
+_LOG = get_logger('Target')
+
+
+class BinaryTargetLabel(Enum):
+    NO = 0
+    YES = 1
 
 
 class TargetLabel(Enum):
@@ -28,6 +36,54 @@ class TargetLabelingPolicy(ABC):
     @abstractmethod
     def threshold_down(self, df: DataFrame):
         pass
+
+
+class HighAboveThreshold(Feature):
+    def __init__(self, threshold: float):
+        super().__init__(f'target_binary_high_above_{threshold}')
+        self.threshold = threshold
+
+    def _calculate(self, input_df: pd.DataFrame):
+        df = input_df.copy()
+        df['temp'] = (df[DataColumns.HIGH] - df[DataColumns.OPEN]) / df[DataColumns.OPEN] * 100
+        df[DataColumns.TARGET] = np.where(df['temp'] >= self.threshold, BinaryTargetLabel.YES.value, BinaryTargetLabel.NO.value)
+        return df[DataColumns.TARGET].shift(-1)
+
+
+class LowAboveThreshold(Feature):
+    def __init__(self, threshold: float):
+        super().__init__(f'target_binary_low_above_{threshold}')
+        self.threshold = threshold
+
+    def _calculate(self, input_df: pd.DataFrame):
+        df = input_df.copy()
+        df['temp'] = (df[DataColumns.OPEN] - df[DataColumns.LOW]) / df[DataColumns.OPEN] * 100
+        df[DataColumns.TARGET] = np.where(df['temp'] < self.threshold, BinaryTargetLabel.YES.value, BinaryTargetLabel.NO.value)
+        return df[DataColumns.TARGET].shift(-1)
+
+
+class HighBelowThreshold(Feature):
+    def __init__(self, threshold: float):
+        super().__init__(f'target_binary_high_below_{threshold}')
+        self.threshold = threshold
+
+    def _calculate(self, input_df: pd.DataFrame):
+        df = input_df.copy()
+        df['temp'] = (df[DataColumns.HIGH] - df[DataColumns.OPEN]) / df[DataColumns.OPEN] * 100
+        df[DataColumns.TARGET] = np.where(df['temp'] < self.threshold, BinaryTargetLabel.YES.value, BinaryTargetLabel.NO.value)
+        return df[DataColumns.TARGET].shift(-1)
+
+
+class LowBelowThreshold(Feature):
+    def __init__(self, threshold: float):
+        super().__init__(f'target_binary_low_below_{threshold}')
+        self.threshold = threshold
+
+    def _calculate(self, input_df: pd.DataFrame):
+        df = input_df.copy()
+        df['temp'] = (df[DataColumns.OPEN] - df[DataColumns.LOW]) / df[DataColumns.OPEN] * 100
+        df[DataColumns.TARGET] = np.where(df['temp'] >= self.threshold, BinaryTargetLabel.YES.value, BinaryTargetLabel.NO.value)
+        return df[DataColumns.TARGET].shift(-1)
 
 
 class Target(Feature):
@@ -104,15 +160,18 @@ class PercentileLabelingPolicy(TargetLabelingPolicy):
             positive_changes = df[df[DataColumns.CLOSE_PERCENT_CHANGE] > 0][DataColumns.CLOSE_PERCENT_CHANGE]
             negative_changes = df[df[DataColumns.CLOSE_PERCENT_CHANGE] < 0][DataColumns.CLOSE_PERCENT_CHANGE]
 
-            positive_percentile = round(self.__negative_percentile / 100, 2)
-            negative_percentile = round(self.__positive_percentile / 100, 2)
+            positive_percentile = round(self.__positive_percentile / 100, 2)
+            negative_percentile = round(self.__negative_percentile / 100, 2)
 
-            positive_percentiles = positive_changes.describe(percentiles=[negative_percentile])
-            negative_percentiles = negative_changes.describe(percentiles=[positive_percentile])
+            positive_percentiles = positive_changes.describe(percentiles=[positive_percentile])
+            negative_percentiles = negative_changes.describe(percentiles=[negative_percentile])
 
             self.calculated_threshold_up = positive_percentiles.loc[f'{self.__positive_percentile}%']
             self.calculated_threshold_down = negative_percentiles.loc[f'{self.__negative_percentile}%']
-            get_logger('target').info(f'Percentiles DOWN: {self.__negative_percentile}, UP: {self.__positive_percentile}. Calc thresholds: {self.calculated_threshold_up}, {self.calculated_threshold_down}')
+
+            _LOG.info(
+                f'Percentiles DOWN: {self.__negative_percentile}, UP: {self.__positive_percentile}. Calc thresholds: {self.calculated_threshold_up}, {self.calculated_threshold_down}')
+            _LOG.info(f'Estimated signals count {round(abs(negative_percentile * 100), 0)}%')
         return df[DataColumns.CLOSE_PERCENT_CHANGE].apply(self.__calculate_labels)
 
     def __calculate_labels(self, row):

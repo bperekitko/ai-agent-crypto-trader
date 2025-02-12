@@ -6,6 +6,7 @@ import pandas as pd
 
 from model.features.close_to_ema import CloseToEma
 from model.features.ema_to_ema_ratio import EmaToEmaRatio
+from model.lstm.lstm_signal_precision import AverageSelectedClassPrecision, AVERAGE_SELECTED_CLASS_PRECISION_METRIC_NAME
 
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 pd.set_option('display.max_columns', None)  # Displaying all columns when printing
@@ -28,7 +29,7 @@ from model.features.feature import Feature
 from model.features.high_to_close import HighToClose
 from model.features.hour_of_day import HourOfDaySine, HourOfDayCosine
 from model.features.rsi import RSI
-from model.features.target import Target, PercentileLabelingPolicy
+from model.features.target import Target, PercentileLabelingPolicy, TargetLabel
 from model.features.volume import Volume
 from model.model import Model
 from model.saved import SAVED_MODELS_PATH
@@ -43,7 +44,7 @@ class Lstm(Model):
     def __init__(self):
         super().__init__()
         self.__version = 0.02
-        self.__features: List[Feature] = [CloseDiff(), HighToClose(), CloseToLow(), Volume(), RSI(8), HourOfDaySine(), HourOfDayCosine(), CloseToEma(15)]
+        self.__features: List[Feature] = [CloseDiff(), HighToClose(), CloseToLow(), Volume(), RSI(8), HourOfDaySine(), HourOfDayCosine(), CloseToEma(15), EmaToEmaRatio(10, 5)]
         neg_perc = 30
         pos_perc = 100 - neg_perc
         self.__target = Target(PercentileLabelingPolicy(neg_perc, pos_perc))
@@ -54,8 +55,8 @@ class Lstm(Model):
             'learning_rate': 0.001,
             'epochs': 100,
             'batch_size': 4,
-            'early_stopping_metric': 'val_precision',
-            'early_stopping_patience': 5,
+            'early_stopping_metric': f'val_{AVERAGE_SELECTED_CLASS_PRECISION_METRIC_NAME}',
+            'early_stopping_patience': 6,
             "target": f'Percentile_{neg_perc}_{pos_perc}',
             'features': [f.name() for f in self.__features]
         }
@@ -67,15 +68,6 @@ class Lstm(Model):
 
     def name(self) -> str:
         return self.__NAME
-
-    def describe(self) -> None:
-        _LOG.info(f'{self.__NAME}')
-        _LOG.info(self.params)
-        for feature in self.__features:
-            if hasattr(feature, 'is_fitted'):
-                _LOG.debug(f'{feature.name()} fitted: {feature.is_fitted}')
-        _LOG.debug(f'Target UP threshold: {self.__target.threshold_up(pd.DataFrame({"col": [1]})).values[0] * 100}%')
-        _LOG.debug(f'DOWN: {self.__target.threshold_down(pd.DataFrame({"col": [1]})).values[0] * 100}%')
 
     def get_thresholds(self):
         target_up = self.__target.threshold_up(pd.DataFrame({'col': [1]})).values[0]
@@ -97,7 +89,11 @@ class Lstm(Model):
             'trained_on'] = f'{df.head(1)[DataColumns.DATE_OPEN].dt.strftime("%Y-%m-%d %H-%M").values[0]} - {df.tail(1)[DataColumns.DATE_OPEN].dt.strftime("%Y-%m-%d %H-%M").values[0]}'
 
         train_data = self.prepare_data(df)
-        x_train, y_train = self.to_sequences(train_data)
+        all_x, all_y = self.to_sequences(train_data)
+
+        train_size = int(0.9 * len(all_x))
+        x_train, x_val = all_x[:train_size], all_x[train_size:]
+        y_train, y_val = all_y[:train_size], all_y[train_size:]
 
         y_train_labels = np.argmax(y_train, axis=1)
         class_weights = compute_class_weight(class_weight='balanced', classes=np.unique(y_train_labels), y=y_train_labels)
@@ -111,10 +107,11 @@ class Lstm(Model):
         self.__model.add(Dense(units=64, activation='relu'))
         self.__model.add(Dropout(0.2))
         self.__model.add(Dense(units=3, activation='softmax'))
-        self.__model.compile(optimizer=Adam(learning_rate=self.params['learning_rate']), loss=self.params['loss_function_name'], metrics=['precision'])
+        self.__model.compile(optimizer=Adam(learning_rate=self.params['learning_rate']), loss=self.params['loss_function_name'],
+                             metrics=[AverageSelectedClassPrecision([TargetLabel.UP.value, TargetLabel.DOWN.value])])
 
-        early_stopping = EarlyStopping(monitor=self.params['early_stopping_metric'], patience=self.params['early_stopping_patience'], restore_best_weights=True)
-        self.__model.fit(x_train, y_train, epochs=self.params['epochs'], batch_size=self.params['batch_size'], validation_split=0.1, class_weight=class_weights_for_model,
+        early_stopping = EarlyStopping(monitor=self.params['early_stopping_metric'], patience=self.params['early_stopping_patience'], restore_best_weights=True, mode='max')
+        self.__model.fit(x_train, y_train, epochs=self.params['epochs'], batch_size=self.params['batch_size'], validation_data=(x_val, y_val), class_weight=class_weights_for_model,
                          callbacks=[early_stopping])
 
     def test(self, df: pd.DataFrame):
@@ -128,7 +125,7 @@ class Lstm(Model):
         _, test_y = self.to_sequences(train_data)
         self.params['adjusted_target'] = False
         y_true = np.argmax(test_y, axis=1)
-        # evaluate(probabilities, y_true, self)
+        evaluate(probabilities, y_true, self)
         return probabilities, y_true
 
     def prepare_data(self, df):

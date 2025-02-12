@@ -16,10 +16,6 @@ class Model(ABC):
         pass
 
     @abstractmethod
-    def describe(self) -> None:
-        pass
-
-    @abstractmethod
     def predict(self, df: pd.DataFrame):
         pass
 

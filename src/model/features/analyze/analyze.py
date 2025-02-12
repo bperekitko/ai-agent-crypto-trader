@@ -34,22 +34,18 @@ def winsorize_transform(values, top=99, bottom=1):
 
 
 def __describe(feature_name, values):
-    # Podstawowe statystyki opisowe
     mean = values.mean()
     median = values.median()
     std_dev = values.std()
     variance = values.var()
-    # Kwartyle i IQR
     q1 = values.quantile(0.25)
     q3 = values.quantile(0.75)
     iqr = q3 - q1
-    # Miary asymetrii i koncentracji
     skewness = values.skew()
     kurtosis = values.kurt()
 
     logger = get_logger(feature_name)
 
-    # Wyświetlanie wyników
 
     logger.info(f"[{feature_name}] Mean: {mean}")
     logger.info(f"[{feature_name}] Median: {median}")

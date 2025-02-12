@@ -19,11 +19,13 @@ class AverageTrueRange(Feature):
 
     def _calculate(self, input_df: DataFrame):
         df = input_df.copy()
-        high_to_low_diff = df[DataColumns.HIGH].pct_change() * 100 - df[DataColumns.LOW].pct_change() * 100
-        high_to_previous_low_diff = np.abs(df[DataColumns.HIGH].pct_change() * 100 - df[DataColumns.LOW].pct_change().shift() * 100)
-        low_to_previous_close = np.abs(df[DataColumns.LOW].pct_change() * 100 - df[DataColumns.CLOSE].pct_change().shift() * 100)
-        df['TrueRange'] = np.maximum(high_to_low_diff, high_to_previous_low_diff, low_to_previous_close)
-        values = df['TrueRange'].rolling(window=self.__window).mean()
+        df['prev_close'] = df[DataColumns.CLOSE].shift(1)
+        df['tr'] = np.maximum(df[DataColumns.HIGH] - df[DataColumns.LOW],
+                              np.maximum(abs(df[DataColumns.HIGH] - df['prev_close']),
+                                         abs(df[DataColumns.LOW] - df['prev_close'])))
+
+        values = df['tr'].rolling(window=self.__window).mean()
+
         values.dropna(inplace=True)
         transformed = self.__transform(values)
         scaled = self.__scale(transformed)
