@@ -10,6 +10,7 @@ from model.features.bollinger_bands import BollingerBandsWidth
 from model.features.close_price_prct_diff import CloseDiff
 from model.features.close_to_ema import CloseToEma
 from model.features.close_to_low import CloseToLow
+from model.features.commodity_channel_index import CommodityChannelIndex
 from model.features.ema_to_ema_ratio import EmaToEmaRatio
 from model.features.high_to_close import HighToClose
 from model.features.hour_of_day import HourOfDaySine, HourOfDayCosine
@@ -45,11 +46,9 @@ def train():
     train_data = get_train_data(client, train_start, train_end)
     test_data = get_train_data(client, train_end, datetime(2025, 2, 2))
 
-
-    #
-    # model = LongHighPriceLstm()
-    # model.train(train_data)
-    # model.test(test_data)
+    model = LongHighPriceLstm()
+    model.train(train_data)
+    model.test(test_data)
 
 
 

@@ -1,23 +1,23 @@
 import pandas as pd
+import numpy as np
 from sklearn.preprocessing import StandardScaler
-
-from data.raw_data_columns import DataColumns
 from model.features.feature import Feature
 
 
-class StochasticOscillator(Feature):
-    def __init__(self, period=14, smoothing_avg=3):
-        super().__init__(f'stochastic_oscillator_{period}_{smoothing_avg}')
+class CommodityChannelIndex(Feature):
+    def __init__(self, period=20):
+        super().__init__(f'CCI_{period}')
         self.period = period
-        self.smoothing_avg = smoothing_avg
         self.scaler = StandardScaler()
         self.is_fitted = False
 
     def _calculate(self, df: pd.DataFrame):
-        df['lowest_low'] = df[DataColumns.LOW].rolling(window=self.period).min()
-        df['highest_high'] = df[DataColumns.HIGH].rolling(window=self.period).max()
-        df['stoch_K'] = 100 * (df[DataColumns.CLOSE] - df['lowest_low']) / (df['highest_high'] - df['lowest_low'])
-        series = df['stoch_K'].rolling(window=self.smoothing_avg).mean()
+        df['typical_price'] = (df['high'] + df['low'] + df['close']) / 3
+        df['sma_tp'] = df['typical_price'].rolling(window=self.period).mean()
+
+        df['mad'] = df['typical_price'].rolling(window=self.period).apply(
+            lambda x: np.mean(np.abs(x - np.mean(x))), raw=True)
+        series = (df['typical_price'] - df['sma_tp']) / (0.015 * df['mad'])
 
         if self._bins > 0:
             series = self._binned_equal_size(series)

@@ -8,6 +8,7 @@ from model.evaluation.evaluate_binary_model import evaluate_binary_model, evalua
 from model.features.atr import AverageTrueRange
 from model.features.bollinger_bands import BollingerBandsWidth
 from model.features.close_to_ema import CloseToEma
+from model.features.commodity_channel_index import CommodityChannelIndex
 from model.features.ema_to_ema_ratio import EmaToEmaRatio
 from model.features.macd import MacdSignal, MacdLine, MacdHistogram
 from model.features.stochastic_oscillator import StochasticOscillator
@@ -47,7 +48,7 @@ class BinaryLstm(Model, ABC):
         self.__version = 0.01
         self.__name = name
         self.features: List[Feature] = [CloseDiff(), HighToClose(), CloseToLow(), Volume(), RSI(8), HourOfDaySine(), HourOfDayCosine(), AverageTrueRange(14),
-                                        BollingerBandsWidth(20, 2), MacdSignal(), MacdLine(), MacdHistogram(), StochasticOscillator()]
+                                        BollingerBandsWidth(20, 2), MacdSignal(), MacdLine(), MacdHistogram(), StochasticOscillator(), CommodityChannelIndex()]
         self.params = {
             'sequence_window': 24,
             'learning_rate': 0.001,
