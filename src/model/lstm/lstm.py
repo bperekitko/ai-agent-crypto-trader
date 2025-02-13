@@ -5,7 +5,7 @@ from typing import List
 import pandas as pd
 
 from model.features.close_to_ema import CloseToEma
-from model.features.ema_to_ema_ratio import EmaToEmaRatio
+from model.features.ema_to_ema_ratio import EmaToEmaPercentageDiff
 from model.lstm.lstm_signal_precision import AverageSelectedClassPrecision, AVERAGE_SELECTED_CLASS_PRECISION_METRIC_NAME
 
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
@@ -44,7 +44,7 @@ class Lstm(Model):
     def __init__(self):
         super().__init__()
         self.__version = 0.02
-        self.__features: List[Feature] = [CloseDiff(), HighToClose(), CloseToLow(), Volume(), RSI(8), HourOfDaySine(), HourOfDayCosine(), CloseToEma(15), EmaToEmaRatio(10, 5)]
+        self.__features: List[Feature] = [CloseDiff(), HighToClose(), CloseToLow(), Volume(), RSI(8), HourOfDaySine(), HourOfDayCosine(), CloseToEma(15), EmaToEmaPercentageDiff(10, 5)]
         neg_perc = 30
         pos_perc = 100 - neg_perc
         self.__target = Target(PercentileLabelingPolicy(neg_perc, pos_perc))

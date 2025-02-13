@@ -1,24 +1,31 @@
 import os
+from statistics import correlation
 
 import pandas as pd
 
 from data.exchange.binance.binance_client import BinanceClient
 from model.evaluation.evaluate_binary_model import evaluate_binary_model, evaluate_simple_stats
-from model.features.analyze.analyze import analyze
+from model.features.analyze.analyze import analyze, log_transform
 from model.features.analyze.feature_correlation import analyze_correlation
 from model.features.bollinger_bands import BollingerBandsWidth
+from model.features.candle_range import CandleRange
 from model.features.close_price_prct_diff import CloseDiff
 from model.features.close_to_ema import CloseToEma
 from model.features.close_to_low import CloseToLow
 from model.features.commodity_channel_index import CommodityChannelIndex
-from model.features.ema_to_ema_ratio import EmaToEmaRatio
+from model.features.cumulated_volume import CumulatedVolume
+from model.features.ema_to_ema_ratio import EmaToEmaPercentageDiff
+from model.features.high_pct_change import HighPercentageChange
 from model.features.high_to_close import HighToClose
 from model.features.hour_of_day import HourOfDaySine, HourOfDayCosine
+from model.features.low_pct_change import LowPercentageChange
 from model.features.macd import MacdSignal, MacdHistogram, MacdLine
+from model.features.rate_of_change import RateOfChange
 from model.features.rsi import RSI
 from model.features.stochastic_oscillator import StochasticOscillator
 from model.features.target import HighAboveThreshold, LowAboveThreshold
 from model.features.volume import Volume
+from model.features.volume_ratio import VolumeRatio
 from model.lstm.binary_lstm import LongHighPriceLstm, LongLowPriceLstm, LongTradeLstm
 
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
@@ -46,9 +53,15 @@ def train():
     train_data = get_train_data(client, train_start, train_end)
     test_data = get_train_data(client, train_end, datetime(2025, 2, 2))
 
+
+    #
     model = LongHighPriceLstm()
-    model.train(train_data)
-    model.test(test_data)
+    df = model.prepare_data(train_data).drop([DataColumns.DATE_CLOSE, 'target_binary_high_above_0.5'], axis=1)
+    analyze_correlation(df)
+
+    # model.train(train_data)
+    # model.test(test_data)
+
 
 
 

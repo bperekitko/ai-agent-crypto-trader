@@ -6,8 +6,8 @@ from data.raw_data_columns import DataColumns
 from model.features.feature import Feature
 
 
-class EmaToEmaRatio(Feature):
-    def __init__(self, long_ema_window: int, short_ema_window: int):
+class EmaToEmaPercentageDiff(Feature):
+    def __init__(self, long_ema_window=20, short_ema_window=5):
         super().__init__(f'ema_{long_ema_window}_to_ema_{short_ema_window}')
         self.long_ema_window = long_ema_window
         self.short_ema_window = short_ema_window
@@ -18,8 +18,9 @@ class EmaToEmaRatio(Feature):
         short_ema = df[DataColumns.CLOSE].ewm(span=self.short_ema_window, adjust=False).mean()
         long_ema = df[DataColumns.CLOSE].ewm(span=self.long_ema_window, adjust=False).mean()
 
-        ratio = long_ema / short_ema
-        scaled_values = self.__scale_values(ratio.values.reshape(-1, 1))
+        df['ema_diff'] = short_ema - long_ema
+        series = df['ema_diff'] / long_ema
+        scaled_values = self.__scale_values(series.values.reshape(-1, 1))
         self.is_fitted = True
 
         nans_to_add = self.long_ema_window

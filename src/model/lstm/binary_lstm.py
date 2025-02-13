@@ -4,22 +4,29 @@ from typing import List
 
 import pandas as pd
 
-from model.evaluation.evaluate_binary_model import evaluate_binary_model, evaluate_simple_stats
-from model.features.atr import AverageTrueRange
-from model.features.bollinger_bands import BollingerBandsWidth
-from model.features.close_to_ema import CloseToEma
-from model.features.commodity_channel_index import CommodityChannelIndex
-from model.features.ema_to_ema_ratio import EmaToEmaRatio
-from model.features.macd import MacdSignal, MacdLine, MacdHistogram
-from model.features.stochastic_oscillator import StochasticOscillator
-
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 pd.set_option('display.max_columns', None)  # Displaying all columns when printing
 pd.set_option('display.expand_frame_repr', False)  # Disable line wrap when printing
 
+from config import LOG_PATH
+from model.evaluation.evaluate_binary_model import evaluate_binary_model, evaluate_simple_stats
+from model.features.atr import AverageTrueRange
+from model.features.bollinger_bands import BollingerBandsWidth
+from model.features.candle_range import CandleRange
+from model.features.commodity_channel_index import CommodityChannelIndex
+from model.features.cumulated_volume import CumulatedVolume
+from model.features.day_of_week import DayOfWeekSine, DayOfWeekCosine
+from model.features.ema_to_ema_ratio import EmaToEmaPercentageDiff
+from model.features.high_pct_change import HighPercentageChange
+from model.features.low_pct_change import LowPercentageChange
+from model.features.macd import MacdSignal, MacdLine, MacdHistogram
+from model.features.rate_of_change import RateOfChange
+from model.features.stochastic_oscillator import StochasticOscillator
+from model.features.volume_ratio import VolumeRatio
+
 import numpy as np
 from keras import Sequential
-from keras.src.callbacks import EarlyStopping
+from keras.src.callbacks import EarlyStopping, TensorBoard
 from keras.src.layers import LSTM, Dense, Dropout, Input, BatchNormalization
 from keras.src.optimizers import Adam
 from keras.src.saving import load_model
@@ -47,8 +54,31 @@ class BinaryLstm(Model, ABC):
         super().__init__()
         self.__version = 0.01
         self.__name = name
-        self.features: List[Feature] = [CloseDiff(), HighToClose(), CloseToLow(), Volume(), RSI(8), HourOfDaySine(), HourOfDayCosine(), AverageTrueRange(14),
-                                        BollingerBandsWidth(20, 2), MacdSignal(), MacdLine(), MacdHistogram(), StochasticOscillator(), CommodityChannelIndex()]
+        self.features: List[Feature] = [
+            CloseDiff(),
+            HighToClose(),
+            CloseToLow(),
+            Volume(),
+            RSI(8),
+            HourOfDaySine(),
+            HourOfDayCosine(),
+            AverageTrueRange(14),
+            BollingerBandsWidth(20, 2),
+            MacdSignal(),
+            MacdLine(),
+            MacdHistogram(),
+            StochasticOscillator(),
+            CommodityChannelIndex(),
+            VolumeRatio(),
+            CumulatedVolume(),
+            CandleRange(),
+            HighPercentageChange(),
+            LowPercentageChange(),
+            DayOfWeekSine(),
+            DayOfWeekCosine(),
+            RateOfChange(),
+            EmaToEmaPercentageDiff()
+        ]
         self.params = {
             'sequence_window': 24,
             'learning_rate': 0.001,
@@ -95,8 +125,9 @@ class BinaryLstm(Model, ABC):
 
         self.init_model()
         early_stopping = EarlyStopping(monitor='val_precision', patience=6, restore_best_weights=True, mode='max')
+        t_board = TensorBoard(log_dir=LOG_PATH, histogram_freq=1, write_images=True)
         self.__model.fit(x_train, y_train, epochs=100, batch_size=self.params['batch_size'], validation_data=(x_val, y_val), class_weight=class_weights_for_model,
-                         callbacks=[early_stopping])
+                         callbacks=[early_stopping, t_board])
         _LOG.info(f'{self.name()} trained')
 
     def prepare_data(self, df):
