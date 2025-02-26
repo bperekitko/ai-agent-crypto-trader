@@ -11,3 +11,5 @@ logs/**
 **.keras**
 .env
 **.log**
+
+**keras_tuner_dir
