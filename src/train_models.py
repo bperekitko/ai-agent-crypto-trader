@@ -1,32 +1,15 @@
 import os
-from statistics import correlation
 
 import pandas as pd
 
 from data.exchange.binance.binance_client import BinanceClient
-from model.evaluation.evaluate_binary_model import evaluate_binary_model, evaluate_simple_stats
-from model.features.analyze.analyze import analyze, log_transform
+from model.evaluation.rolling_window_validation import validate_using_rolling_window
 from model.features.analyze.feature_correlation import analyze_correlation
-from model.features.bollinger_bands import BollingerBandsWidth
-from model.features.candle_range import CandleRange
-from model.features.close_price_prct_diff import CloseDiff
-from model.features.close_to_ema import CloseToEma
-from model.features.close_to_low import CloseToLow
-from model.features.commodity_channel_index import CommodityChannelIndex
-from model.features.cumulated_volume import CumulatedVolume
-from model.features.ema_to_ema_ratio import EmaToEmaPercentageDiff
-from model.features.high_pct_change import HighPercentageChange
-from model.features.high_to_close import HighToClose
-from model.features.hour_of_day import HourOfDaySine, HourOfDayCosine
-from model.features.low_pct_change import LowPercentageChange
-from model.features.macd import MacdSignal, MacdHistogram, MacdLine
-from model.features.rate_of_change import RateOfChange
-from model.features.rsi import RSI
-from model.features.stochastic_oscillator import StochasticOscillator
-from model.features.target import HighAboveThreshold, LowAboveThreshold
-from model.features.volume import Volume
-from model.features.volume_ratio import VolumeRatio
-from model.lstm.binary_lstm import LongHighPriceLstm, LongLowPriceLstm, LongTradeLstm
+from model.features.analyze.feature_importance import analyze_importance
+from model.features.target import LongTradeTarget
+from model.lstm.binary_lstm import LongTradeLstm
+from model.lstm.hiperparameter_tuning import tune_lstm
+from trading.backtest_strategy import backtest_model
 
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 pd.set_option('display.max_columns', None)  # Displaying all columns when printing
@@ -53,20 +36,22 @@ def train():
     train_data = get_train_data(client, train_start, train_end)
     test_data = get_train_data(client, train_end, datetime(2025, 2, 2))
 
+    all_data = get_train_data(client, train_start, datetime(2025, 2, 2))
 
+    # tune_lstm(train_data)
+    # input_df = LongTradeLstm().prepare_data(all_data)
+    # analyze_importance(input_df.drop([DataColumns.DATE_CLOSE, LongTradeTarget().name()], axis=1), input_df[LongTradeTarget().name()])
     #
-    model = LongHighPriceLstm()
-    df = model.prepare_data(train_data).drop([DataColumns.DATE_CLOSE, 'target_binary_high_above_0.5'], axis=1)
-    analyze_correlation(df)
+    model = LongTradeLstm()
+    model.train(train_data)
+    backtest_model(test_data, model, 0.5)
+    model.test(test_data)
 
-    # model.train(train_data)
-    # model.test(test_data)
-
-
-
+    # validate_using_rolling_window(get_train_data(client, train_start, datetime(2025, 2, 2)), LongTradeLstm, 12)
+    # analyze_correlation(LongTradeLstm().prepare_data(train_data).drop([DataColumns.DATE_CLOSE, LongTradeTarget().name()], axis=1))
 
 
-def get_train_data(client, train_start, train_end, ) -> pd.DataFrame:
+def get_train_data(client, train_start, train_end) -> pd.DataFrame:
     print(f'Getting train data between {train_start} - {train_end}')
     try:
         df = pd.read_parquet(RAW_DATA_FILE_PATH)

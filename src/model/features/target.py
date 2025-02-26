@@ -38,6 +38,20 @@ class TargetLabelingPolicy(ABC):
         pass
 
 
+class LongTradeTarget(Feature):
+    def __init__(self, high_threshold=0.5, low_threshold=0.5):
+        super().__init__(f'target_high_above_{high_threshold}_low_not_lower_than_{low_threshold}')
+        self.high_threshold = high_threshold
+        self.low_threshold = low_threshold
+
+    def _calculate(self, input_df: pd.DataFrame):
+        df = input_df.copy()
+        df['temp'] = (df[DataColumns.HIGH] - df[DataColumns.OPEN]) / df[DataColumns.OPEN] * 100
+        df['temp2'] = (df[DataColumns.OPEN] - df[DataColumns.LOW]) / df[DataColumns.OPEN] * 100
+        df[DataColumns.TARGET] = np.where((df['temp'] >= self.high_threshold) & (df['temp2'] <= self.low_threshold), BinaryTargetLabel.YES.value, BinaryTargetLabel.NO.value)
+        return df[DataColumns.TARGET].shift(-1)
+
+
 class HighAboveThreshold(Feature):
     def __init__(self, threshold: float):
         super().__init__(f'target_binary_high_above_{threshold}')

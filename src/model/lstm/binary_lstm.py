@@ -1,5 +1,6 @@
 import os
 import pickle
+from tarfile import tar_filter
 from typing import List
 
 import pandas as pd
@@ -28,7 +29,7 @@ import numpy as np
 from keras import Sequential
 from keras.src.callbacks import EarlyStopping, TensorBoard
 from keras.src.layers import LSTM, Dense, Dropout, Input, BatchNormalization
-from keras.src.optimizers import Adam
+from keras.src.optimizers import Adam, AdamW
 from keras.src.saving import load_model
 from sklearn.utils.class_weight import compute_class_weight
 
@@ -39,7 +40,7 @@ from model.features.feature import Feature
 from model.features.high_to_close import HighToClose
 from model.features.hour_of_day import HourOfDaySine, HourOfDayCosine
 from model.features.rsi import RSI
-from model.features.target import HighAboveThreshold, LowAboveThreshold
+from model.features.target import HighAboveThreshold, LowAboveThreshold, LongTradeTarget
 from model.features.volume import Volume
 from model.model import Model
 from model.saved import SAVED_MODELS_PATH
@@ -61,28 +62,39 @@ class BinaryLstm(Model, ABC):
             Volume(),
             RSI(8),
             HourOfDaySine(),
-            HourOfDayCosine(),
+            # HourOfDayCosine(),
             AverageTrueRange(14),
-            BollingerBandsWidth(20, 2),
+            # BollingerBandsWidth(),
             MacdSignal(),
             MacdLine(),
             MacdHistogram(),
-            StochasticOscillator(),
-            CommodityChannelIndex(),
+            # StochasticOscillator(),
+            # CommodityChannelIndex(),
             VolumeRatio(),
             CumulatedVolume(),
             CandleRange(),
             HighPercentageChange(),
-            LowPercentageChange(),
+            # LowPercentageChange(),
             DayOfWeekSine(),
-            DayOfWeekCosine(),
+            # DayOfWeekCosine(),
             RateOfChange(),
-            EmaToEmaPercentageDiff()
+            # EmaToEmaPercentageDiff()
         ]
         self.params = {
             'sequence_window': 24,
-            'learning_rate': 0.001,
-            'batch_size': 32,
+            'es_metric': 'val_loss',
+            "batch_size": 24,
+            "num_lstm_layers": 2,
+            "lstm_units_1": 224,
+            "dropout_1": 0.2,
+            "num_dense_layers": 1,
+            "dense_units": 80,
+            "dropout_dense1": 0.2,
+            "learning_rate": 0.001,
+            "lstm_units_2": 32,
+            "dropout_2": 0.4,
+            "dense_units2": 80,
+            "dropout_dense2": 0.3,
             'features': [f.name() for f in self.features]
         }
 
@@ -101,10 +113,7 @@ class BinaryLstm(Model, ABC):
         return self.__model.predict(x_train), y_true
 
     def test(self, df: pd.DataFrame):
-        probabilities, _ = self.predict(df)
-        train_data = self.prepare_data(df)
-        _, true_y = self.to_sequences(train_data)
-
+        probabilities, true_y = self.predict(df)
         evaluate_binary_model(probabilities, true_y, self)
         return probabilities, true_y
 
@@ -124,7 +133,7 @@ class BinaryLstm(Model, ABC):
         class_weights_for_model = dict(zip(np.unique(y_train), class_weights))
 
         self.init_model()
-        early_stopping = EarlyStopping(monitor='val_precision', patience=6, restore_best_weights=True, mode='max')
+        early_stopping = EarlyStopping(monitor=self.params['es_metric'], patience=12, restore_best_weights=True, mode='min' if self.params['es_metric'] == 'val_loss' else 'max')
         t_board = TensorBoard(log_dir=LOG_PATH, histogram_freq=1, write_images=True)
         self.__model.fit(x_train, y_train, epochs=100, batch_size=self.params['batch_size'], validation_data=(x_val, y_val), class_weight=class_weights_for_model,
                          callbacks=[early_stopping, t_board])
@@ -160,13 +169,46 @@ class BinaryLstm(Model, ABC):
 
     def init_model(self):
         self.__model.add(Input(shape=(self.params['sequence_window'], len(self.features))))
-        self.__model.add(LSTM(units=100))
-        self.__model.add(Dropout(0.2))
+
+        self.__model.add(LSTM(units=self.params['lstm_units_1'], return_sequences=self.params['num_lstm_layers'] > 1))
+        self.__model.add(Dropout(self.params['dropout_1']))
         self.__model.add(BatchNormalization())
-        self.__model.add(Dense(units=32, activation='relu'))
-        self.__model.add(Dropout(0.2))
+
+        if self.params['num_lstm_layers'] > 1:
+            self.__model.add(LSTM(units=self.params['lstm_units_2']))
+            self.__model.add(Dropout(self.params['dropout_2']))
+            self.__model.add(BatchNormalization())
+
+        self.__model.add(Dense(units=self.params['dense_units'], activation='relu'))
+        self.__model.add(Dropout(self.params['dropout_dense1']))
+
+        if self.params['num_dense_layers'] > 1:
+            self.__model.add(Dense(units=self.params['dense_units2'], activation='relu'))
+            self.__model.add(Dropout(self.params['dropout_dense2']))
+
         self.__model.add(Dense(1, activation='sigmoid'))
         self.__model.compile(optimizer=Adam(learning_rate=self.params['learning_rate']), loss='binary_crossentropy', metrics=['precision'])
+
+
+class LongTradeLstm(BinaryLstm):
+    NAME = 'long_trade_lstm'
+
+    def __init__(self):
+        target = LongTradeTarget(0.5, 0.5)
+        super().__init__(target, name=LongTradeLstm.NAME)
+
+    @classmethod
+    def load(cls, version: str):
+        model_path = os.path.join(SAVED_MODELS_PATH, f'{LongTradeLstm.NAME}_{version}.keras')
+        other_data_path = os.path.join(SAVED_MODELS_PATH, f'{LongTradeLstm.NAME}_{version}_data.pkl')
+
+        new_instance = cls()
+        with open(other_data_path, 'rb') as file:
+            other_data = pickle.load(file)
+            new_instance.__dict__.update(other_data)
+        new_instance.__model = load_model(model_path)
+
+        return new_instance
 
 
 # Tries to predict whether price of next candle will raise above certain threshold (in percent)
@@ -213,14 +255,14 @@ class LongLowPriceLstm(BinaryLstm):
         return new_instance
 
 
-class LongTradeLstm(Model):
+class LongTradeEnsembleLstm(Model):
     def __init__(self, high_model: LongHighPriceLstm, low_model: LongLowPriceLstm):
         super().__init__()
         self.high_model = high_model
         self.low_model = low_model
 
     def name(self) -> str:
-        return 'long_trade_lstm'
+        return 'long_trade_ensemble_lstm'
 
     def version(self) -> str:
         return '0.01'

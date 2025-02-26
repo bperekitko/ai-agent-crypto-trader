@@ -14,7 +14,8 @@ class EmaToEmaPercentageDiff(Feature):
         self.scaler = StandardScaler()
         self.is_fitted = False
 
-    def _calculate(self, df: pd.DataFrame):
+    def _calculate(self, input_df: pd.DataFrame):
+        df = input_df.copy()
         short_ema = df[DataColumns.CLOSE].ewm(span=self.short_ema_window, adjust=False).mean()
         long_ema = df[DataColumns.CLOSE].ewm(span=self.long_ema_window, adjust=False).mean()
 

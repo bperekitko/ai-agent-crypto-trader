@@ -11,7 +11,8 @@ class CommodityChannelIndex(Feature):
         self.scaler = StandardScaler()
         self.is_fitted = False
 
-    def _calculate(self, df: pd.DataFrame):
+    def _calculate(self, input_df: pd.DataFrame):
+        df = input_df.copy()
         df['typical_price'] = (df['high'] + df['low'] + df['close']) / 3
         df['sma_tp'] = df['typical_price'].rolling(window=self.period).mean()
 

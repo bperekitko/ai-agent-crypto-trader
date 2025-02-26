@@ -17,7 +17,7 @@ from model.model import Model
 from utils.add_to_excel import append_df_to_excel
 from utils.log import get_logger
 
-__CONFIDENCE_LEVELS = [0.5, 0.6, 0.7, 0.8, 0.9]
+__CONFIDENCE_LEVELS = [0.5, 0.6]
 _LOG = get_logger("Binary Model Evaluation")
 
 

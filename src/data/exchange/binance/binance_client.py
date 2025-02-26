@@ -93,8 +93,8 @@ class BinanceClient(ExchangeClient):
         return list(candlesticks)
 
     @_with_exceptions_handled
-    def get_historical_klines(self, symbol: str, start: datetime, end: datetime) -> List[Candlestick]:
-        klines = self.client.futures_historical_klines(symbol=symbol, interval=self.client.KLINE_INTERVAL_1HOUR, start_str=int(start.timestamp() * 1000),
+    def get_historical_klines(self, symbol: str, start: datetime, end: datetime, interval=Client.KLINE_INTERVAL_1HOUR) -> List[Candlestick]:
+        klines = self.client.futures_historical_klines(symbol=symbol, interval=interval, start_str=int(start.timestamp() * 1000),
                                                        end_str=int(end.timestamp() * 1000), limit=None)
         candlesticks = map(
             lambda k: Candlestick(symbol, float(k[1]), float(k[2]), float(k[3]), float(k[4]), True, datetime.fromtimestamp(k[0] / 1000), datetime.fromtimestamp(k[6] / 1000),

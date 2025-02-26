@@ -120,7 +120,6 @@ class Lstm(Model):
             'tested_on'] = f'{df.head(1)[DataColumns.DATE_CLOSE].dt.strftime("%Y-%m-%d %H-%M").values[0]} - {df.tail(1)[DataColumns.DATE_CLOSE].dt.strftime("%Y-%m-%d %H-%M").values[0]}'
         probabilities, _, _ = self.predict(df)
         train_data = self.prepare_data(df)
-        # evaluate_for_highs_and_lows(probabilities, self, train_data, self.__target.threshold_up, self.__target.threshold_down)
 
         _, test_y = self.to_sequences(train_data)
         self.params['adjusted_target'] = False

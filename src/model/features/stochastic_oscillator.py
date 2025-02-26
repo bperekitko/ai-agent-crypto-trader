@@ -13,7 +13,8 @@ class StochasticOscillator(Feature):
         self.scaler = StandardScaler()
         self.is_fitted = False
 
-    def _calculate(self, df: pd.DataFrame):
+    def _calculate(self, input_df: pd.DataFrame):
+        df = input_df.copy()
         df['lowest_low'] = df[DataColumns.LOW].rolling(window=self.period).min()
         df['highest_high'] = df[DataColumns.HIGH].rolling(window=self.period).max()
         df['stoch_K'] = 100 * (df[DataColumns.CLOSE] - df['lowest_low']) / (df['highest_high'] - df['lowest_low'])

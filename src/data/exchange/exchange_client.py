@@ -37,7 +37,7 @@ class ExchangeClient(ABC):
         pass
 
     @abstractmethod
-    def get_historical_klines(self, symbol: str, start: datetime, end: datetime) -> List[Candlestick]:
+    def get_historical_klines(self, symbol: str, start: datetime, end: datetime, interval = "1h") -> List[Candlestick]:
         pass
 
     @abstractmethod
